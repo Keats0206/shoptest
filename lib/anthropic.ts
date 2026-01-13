@@ -18,6 +18,42 @@ export interface StyleProfile {
   colorPreferences: string;
 }
 
+export interface OutfitItem {
+  category: string;
+  query: string;
+  reasoning: string;
+}
+
+export interface Outfit {
+  name: string;
+  occasion: string;
+  items: OutfitItem[];
+}
+
+export interface VersatilePiece {
+  category: string;
+  query: string;
+  reasoning: string;
+}
+
+export interface OutfitStructure {
+  outfits: Outfit[];
+  versatile_pieces: VersatilePiece[];
+}
+
+export interface QuizData {
+  styles: string[];
+  occasions: string[];
+  bodyType: string;
+  fitPreference?: string;
+  budgetRange: string;
+  avoidances: string[];
+  mustHaves: string[];
+  colorPreferences?: string;
+  favoriteBrands?: string[];
+  gender?: 'male' | 'female' | 'unisex' | string; // For Channel3 API: 'male', 'female', 'unisex'
+}
+
 export async function generateSearchQueries(profile: StyleProfile): Promise<string[]> {
   // Format brands for prompt
   const brandsText = Array.isArray(profile.favoriteBrands) 
@@ -96,3 +132,121 @@ Return ONLY the reason, no quotes or formatting.`;
   return content.text.trim();
 }
 
+export async function generateOutfitStructure(quiz: QuizData): Promise<OutfitStructure> {
+  const systemPrompt = `You are a fashion stylist AI. Generate product search queries for cohesive outfits based on the user's style profile.
+
+Output format:
+{
+  "outfits": [
+    {
+      "name": "Casual Weekend",
+      "occasion": "Relaxed brunch or coffee",
+      "items": [
+        {
+          "category": "top",
+          "query": "oversized cream cable knit sweater",
+          "reasoning": "Cozy but polished, works with the user's minimal aesthetic"
+        },
+        {
+          "category": "bottom",
+          "query": "high waisted black wide leg trousers",
+          "reasoning": "Balances the relaxed top, elongates silhouette"
+        }
+      ]
+    }
+  ],
+  "versatile_pieces": [
+    {
+      "category": "shoes",
+      "query": "white leather low top sneakers minimal",
+      "reasoning": "Works across all three outfits, clean and versatile"
+    }
+  ]
+}
+
+Rules:
+- Generate 3-4 complete outfits
+- Each outfit MUST include shoes - footwear is required for every outfit
+- Each outfit should have 3-4 items (minimum 3, ideally 4)
+- Add 2-3 versatile pieces that work across outfits (these can include shoes but outfits must have their own)
+- Total items should be exactly 12
+- Ensure color harmony within each outfit
+- Queries should be specific enough for good search results
+- Stay within the user's budget range per item
+- Categories should be: top, bottom, dress, outerwear, blazer, shoes, bag, jewelry, accessories, denim
+- Make queries specific with style descriptors, colors, and fit details
+- Example outfit structures:
+  * Professional/Office: blazer, top, bottom, SHOES (required)
+  * Casual/Weekend: top, bottom, outerwear, SHOES (required)
+  * Dress-based: dress, outerwear, bag, SHOES (required)
+  * Minimal: top, bottom, SHOES (required)`;
+
+  const avoidancesText = quiz.avoidances.length > 0 ? quiz.avoidances.join(', ') : 'None';
+  const mustHavesText = quiz.mustHaves.length > 0 ? quiz.mustHaves.join(', ') : 'All categories welcome';
+  const fitPreferenceText = quiz.fitPreference || 'No specific preference';
+  const colorPreferencesText = quiz.colorPreferences || 'mixed';
+  const brandsText = quiz.favoriteBrands && quiz.favoriteBrands.length > 0 
+    ? quiz.favoriteBrands.join(', ') 
+    : 'No brand preference';
+
+  const userPrompt = `Style Profile:
+- Aesthetics: ${quiz.styles.join(", ")}
+- Occasions: ${quiz.occasions.join(", ")}
+- Body type: ${quiz.bodyType}
+- Fit preference: ${fitPreferenceText}
+- Budget per item: ${quiz.budgetRange}
+- Color preferences: ${colorPreferencesText}
+- Favorite brands: ${brandsText}
+- Avoid: ${avoidancesText}
+- Must-have categories: ${mustHavesText}
+
+Generate 12 product search queries organized into cohesive outfits.`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [
+      {
+        role: 'user',
+        content: userPrompt,
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== 'text') {
+    throw new Error('Unexpected response type from Claude');
+  }
+
+  try {
+    // Try to parse JSON directly
+    const text = content.text.trim();
+    // Remove markdown code blocks if present
+    const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const outfitStructure = JSON.parse(cleanedText) as OutfitStructure;
+    
+    // Validate structure
+    if (!outfitStructure.outfits || !Array.isArray(outfitStructure.outfits)) {
+      throw new Error('Invalid outfit structure: missing outfits array');
+    }
+    if (!outfitStructure.versatile_pieces || !Array.isArray(outfitStructure.versatile_pieces)) {
+      throw new Error('Invalid outfit structure: missing versatile_pieces array');
+    }
+    
+    return outfitStructure;
+  } catch (error) {
+    // Fallback: try to extract JSON from text
+    const text = content.text.trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const outfitStructure = JSON.parse(jsonMatch[0]) as OutfitStructure;
+        return outfitStructure;
+      } catch {
+        throw new Error('Failed to parse outfit structure from Claude response');
+      }
+    }
+    throw new Error('Failed to parse outfit structure from Claude response');
+  }
+}

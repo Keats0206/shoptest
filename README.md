@@ -4,11 +4,16 @@
 
 ## Features
 
-- 🎨 **Style Quiz** - 7-question mobile-first form to capture style preferences
+- 🎨 **Style Quiz** - Quick style quiz to capture preferences (no auth required)
 - 🤖 **AI Recommendations** - Claude-powered search query generation
 - 🛍️ **Product Discovery** - Channel3 API integration for product search
 - 📱 **Mobile-First** - Optimized for iPhone and mobile devices
 - ⚡ **Fast & Modern** - Clean, minimalist aesthetic inspired by Reformation and Everlane
+- 🔐 **Anonymous-First Auth** - Try the product before signing up
+- 💾 **Save Drops** - Sign in to save and access your drops anytime
+- 🔄 **Refine Drops** - Adjust your style preferences after seeing results
+- 📊 **Price Tracking** - Track prices on your favorite items (premium)
+- 🔗 **Shareable Drops** - Share your style drops with friends
 
 ## Tech Stack
 
@@ -17,6 +22,8 @@
 - **Styling**: Tailwind CSS 4
 - **AI**: Anthropic Claude API
 - **Products**: Channel3 API
+- **Auth**: Supabase Auth (Email, Google, Apple)
+- **Database**: Supabase PostgreSQL
 - **Deployment**: Vercel (one-click deploy)
 
 ## Getting Started
@@ -27,6 +34,7 @@
 - npm, yarn, pnpm, or bun
 - Anthropic API key ([get one here](https://console.anthropic.com/))
 - Channel3 API key ([sign up here](https://trychannel3.com/))
+- Supabase account ([sign up here](https://supabase.com/))
 
 ### Installation
 
@@ -51,9 +59,26 @@ CHANNEL3_API_KEY=your_channel3_api_key_here
 
 # Optional: Channel3 API URL (defaults to https://api.trychannel3.com)
 # CHANNEL3_API_URL=https://api.trychannel3.com
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 3. **Run the development server:**
+
+```bash
+npm run dev
+```
+
+4. **Set up Supabase database:**
+
+   - Create a new Supabase project at [supabase.com](https://supabase.com)
+   - Go to SQL Editor and run the schema from `supabase/schema.sql`
+   - Copy your project URL and anon key from Settings > API
+   - Add them to your `.env.local` file
+
+5. **Run the development server:**
 
 ```bash
 npm run dev
@@ -127,6 +152,8 @@ The app is optimized for Vercel with:
 | `ANTHROPIC_API_KEY` | Yes | Your Anthropic API key for Claude |
 | `CHANNEL3_API_KEY` | Yes | Your Channel3 API key for product search |
 | `CHANNEL3_API_URL` | No | Channel3 API base URL (defaults to https://api.trychannel3.com) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Your Supabase anonymous/public key |
 
 ## Testing the Hypothesis
 
@@ -141,22 +168,36 @@ Track engagement through:
 - Time spent on results page
 - Return visits
 
-## Limitations & Future Improvements
+## Authentication Flow
 
-This MVP intentionally excludes:
-- User accounts
-- Email digests
-- Favorites/save functionality
-- Social sharing
-- Gamification
+ShopPal uses an **anonymous-first** approach:
 
-For production, consider adding:
-- Database for haul persistence
-- User authentication
-- Analytics integration
-- Error monitoring
-- Product caching
-- Rate limiting
+1. **Anonymous Experience**: Users can take the quiz and see their drop immediately without signing up
+2. **Auth Gates**: Authentication is required for:
+   - Saving drops
+   - Refining drops with text prompts
+   - Keeping/removing items (saving state)
+   - Tracking prices
+   - Generating additional drops
+3. **Data Migration**: When users sign in, their localStorage drops are automatically migrated to their account
+4. **Shareable Drops**: Anonymous drops can be shared via URL (`/drop/[id]`)
+
+## Database Schema
+
+The Supabase database includes:
+- `drops` - User's saved style drops
+- `user_preferences` - Stored quiz answers and preferences
+- `price_tracking` - Price alerts for premium users
+
+Run `supabase/schema.sql` in your Supabase SQL Editor to set up the tables and Row Level Security policies.
+
+## Future Improvements
+
+- Premium tier with unlimited drops and price tracking
+- Weekly automated drops
+- Email notifications for price drops
+- Social sharing enhancements
+- Product caching and rate limiting
 
 ## License
 

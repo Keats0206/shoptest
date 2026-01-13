@@ -9,6 +9,10 @@ export interface Product {
   currency: string;
   buyLink: string;
   reason?: string;
+  description?: string;
+  enrichedImages?: string[];
+  materials?: string[];
+  keyFeatures?: string[];
 }
 
 interface ProductCardProps {

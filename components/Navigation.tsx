@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from './AuthProvider';
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
 
   return (
     <nav className="border-b border-neutral-200 bg-white sticky top-0 z-50 backdrop-blur-sm bg-white/95">
@@ -19,16 +21,18 @@ export default function Navigation() {
 
           {/* Navigation Links */}
           <div className="flex items-center gap-4 md:gap-6">
-            <Link
-              href="/drops"
-              className={`text-xs md:text-sm font-medium transition-colors py-2 px-1 ${
-                pathname === '/drops'
-                  ? 'text-neutral-900'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              Drops
-            </Link>
+            {user && (
+              <Link
+                href="/drops"
+                className={`text-xs md:text-sm font-medium transition-colors py-2 px-1 ${
+                  pathname === '/drops'
+                    ? 'text-neutral-900'
+                    : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                My Drops
+              </Link>
+            )}
             <Link
               href="/quiz"
               className={`text-xs md:text-sm font-medium transition-colors py-2 px-1 ${
@@ -39,6 +43,16 @@ export default function Navigation() {
             >
               Quiz
             </Link>
+            {user ? (
+              <button
+                onClick={() => signOut()}
+                className="text-xs md:text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors py-2 px-1"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <span className="text-xs text-neutral-500">Anonymous</span>
+            )}
           </div>
         </div>
       </div>

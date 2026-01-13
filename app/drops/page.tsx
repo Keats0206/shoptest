@@ -106,8 +106,11 @@ export default function DropsPage() {
         {/* Header */}
         <div className="mb-8 md:mb-12">
           <h1 className="text-3xl md:text-4xl font-medium mb-2 uppercase tracking-tight">
-            My Drops
+            My Style Drops
           </h1>
+          <p className="text-sm text-neutral-600 mb-2 italic">
+            Your personalized styling drops, saved digitally
+          </p>
           <p className="text-xs text-neutral-500 uppercase tracking-wide">
             {drops.length} {drops.length === 1 ? 'drop' : 'drops'} saved
           </p>

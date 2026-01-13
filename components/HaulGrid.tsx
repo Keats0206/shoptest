@@ -2,10 +2,11 @@ import ProductCard, { Product } from './ProductCard';
 
 interface HaulGridProps {
   products: Product[];
-  onProductClick?: (productId: string) => void;
+  onProductClick?: (product: Product) => void;
+  onShopClick?: (productId: string) => void;
 }
 
-export default function HaulGrid({ products, onProductClick }: HaulGridProps) {
+export default function HaulGrid({ products, onProductClick, onShopClick }: HaulGridProps) {
   if (products.length === 0) {
     return (
       <div className="text-center py-12">
@@ -20,7 +21,8 @@ export default function HaulGrid({ products, onProductClick }: HaulGridProps) {
         <ProductCard
           key={product.id}
           product={product}
-          onShopClick={() => onProductClick?.(product.id)}
+          onProductClick={onProductClick}
+          onShopClick={() => onShopClick?.(product.id)}
         />
       ))}
     </div>

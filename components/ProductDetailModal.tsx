@@ -2,13 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Product } from './ProductCard';
+import type { User } from '@supabase/supabase-js';
+
+export interface Product {
+  id: string;
+  name: string;
+  brand: string;
+  image: string;
+  price: number;
+  currency: string;
+  buyLink: string;
+  reason?: string;
+  category?: string;
+  description?: string;
+  enrichedImages?: string[];
+  materials?: string[];
+  keyFeatures?: string[];
+}
 
 interface ProductDetailModalProps {
   product: Product | null;
   isOpen: boolean;
   onClose: () => void;
   onShop: () => void;
+  user?: User | null;
+  onTrackPrice?: () => void;
 }
 
 interface EnrichedProductData {
@@ -18,40 +36,51 @@ interface EnrichedProductData {
   key_features: string[] | null;
 }
 
-export default function ProductDetailModal({ product, isOpen, onClose, onShop }: ProductDetailModalProps) {
+export default function ProductDetailModal({ product, isOpen, onClose, onShop, user, onTrackPrice }: ProductDetailModalProps) {
   const [enrichedData, setEnrichedData] = useState<EnrichedProductData | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     if (isOpen && product) {
-      setLoading(true);
       setCurrentImageIndex(0);
       
-      // Fetch enriched product data
-      fetch('/api/enrich-product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: product.buyLink }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.description || data.images || data.materials || data.key_features) {
-            setEnrichedData({
-              description: data.description || null,
-              images: data.images || [],
-              materials: data.materials || null,
-              key_features: data.key_features || null,
-            });
-          }
-          setLoading(false);
-        })
-        .catch((error) => {
-          console.error('Error enriching product:', error);
-          setLoading(false);
+      // Use pre-enriched data if available
+      if (product.description || product.enrichedImages || product.materials || product.keyFeatures) {
+        setEnrichedData({
+          description: product.description || null,
+          images: product.enrichedImages || [],
+          materials: product.materials || null,
+          key_features: product.keyFeatures || null,
         });
+        setLoading(false);
+      } else {
+        // Fallback: Fetch enriched product data if not pre-enriched
+        setLoading(true);
+        fetch('/api/enrich-product', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: product.buyLink }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.description || data.images || data.materials || data.key_features) {
+              setEnrichedData({
+                description: data.description || null,
+                images: data.images || [],
+                materials: data.materials || null,
+                key_features: data.key_features || null,
+              });
+            }
+            setLoading(false);
+          })
+          .catch((error) => {
+            console.error('Error enriching product:', error);
+            setLoading(false);
+          });
+      }
     } else {
       setEnrichedData(null);
     }
@@ -201,13 +230,23 @@ export default function ProductDetailModal({ product, isOpen, onClose, onShop }:
               </div>
             )}
 
-            {/* Shop Button */}
-            <button
-              onClick={handleShop}
-              className="w-full py-4 bg-black text-white hover:bg-neutral-800 transition-colors font-medium text-base uppercase tracking-wide rounded-lg"
-            >
-              Shop Now
-            </button>
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              <button
+                onClick={handleShop}
+                className="w-full py-4 bg-black text-white hover:bg-neutral-800 transition-colors font-medium text-base uppercase tracking-wide rounded-lg"
+              >
+                Shop Now
+              </button>
+              {user && onTrackPrice && (
+                <button
+                  onClick={onTrackPrice}
+                  className="w-full py-3 border-2 border-neutral-300 hover:border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide rounded-lg"
+                >
+                  Track Price
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

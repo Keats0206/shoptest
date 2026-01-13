@@ -10,25 +10,23 @@ interface ApiResponse {
 }
 
 export default function AdminPage() {
-  const [selectedEndpoint, setSelectedEndpoint] = useState<'generate-haul' | 'shuffle'>('generate-haul');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
 
-  // Generate Haul form state
+  // Generate Haul form state - new quiz format
   const [generateHaulBody, setGenerateHaulBody] = useState(`{
-  "gender": "women's",
-  "bodyType": "hourglass",
-  "styleVibe": "minimalist",
-  "budget": "mid-range",
-  "shoppingFor": "work wardrobe",
-  "colorPreferences": "neutrals",
-  "favoriteBrands": ["Everlane", "Cuyana"]
-}`);
-
-  // Shuffle form state
-  const [shuffleBody, setShuffleBody] = useState(`{
-  "keptIds": [],
-  "count": 12
+  "quiz": {
+    "styles": ["minimalist", "classic"],
+    "occasions": ["work-office", "everyday-casual"],
+    "bodyType": "hourglass",
+    "fitPreference": "tailored",
+    "budgetRange": "$$$",
+    "avoidances": [],
+    "mustHaves": ["outerwear", "shoes"],
+    "colorPreferences": "neutral",
+    "favoriteBrands": ["Everlane", "Cuyana"],
+    "gender": "female"
+  }
 }`);
 
   const testEndpoint = async () => {
@@ -36,12 +34,10 @@ export default function AdminPage() {
     setResponse(null);
 
     try {
-      const body = selectedEndpoint === 'generate-haul' 
-        ? generateHaulBody 
-        : shuffleBody;
+      const body = generateHaulBody;
 
       const parsedBody = JSON.parse(body);
-      const res = await fetch(`/api/${selectedEndpoint}`, {
+      const res = await fetch(`/api/generate-haul`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,49 +69,55 @@ export default function AdminPage() {
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <h1 className="text-4xl font-bold mb-8">API Admin Panel</h1>
 
-      {/* Endpoint Selector */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium mb-2">Select Endpoint</label>
-        <div className="flex gap-4">
-          <button
-            onClick={() => setSelectedEndpoint('generate-haul')}
-            className={`px-4 py-2 rounded border ${
-              selectedEndpoint === 'generate-haul'
-                ? 'bg-foreground text-background'
-                : 'bg-background border-foreground/20'
-            }`}
-          >
-            /api/generate-haul
-          </button>
-          <button
-            onClick={() => setSelectedEndpoint('shuffle')}
-            className={`px-4 py-2 rounded border ${
-              selectedEndpoint === 'shuffle'
-                ? 'bg-foreground text-background'
-                : 'bg-background border-foreground/20'
-            }`}
-          >
-            /api/shuffle
-          </button>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Request Section */}
         <div>
           <h2 className="text-2xl font-semibold mb-4">Request</h2>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">
-              Request Body (JSON)
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium">
+                Request Body (JSON)
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setGenerateHaulBody(`{
+  "quiz": {
+    "styles": ["minimalist", "classic"],
+    "occasions": ["work-office", "everyday-casual"],
+    "bodyType": "hourglass",
+    "fitPreference": "tailored",
+    "budgetRange": "$$$",
+    "avoidances": [],
+    "mustHaves": ["outerwear", "shoes"],
+    "colorPreferences": "neutral",
+    "favoriteBrands": ["Everlane", "Cuyana"],
+    "gender": "female"
+  }
+}`)}
+                  className="text-xs px-2 py-1 border border-foreground/20 rounded hover:bg-foreground/5"
+                >
+                  Load New Format
+                </button>
+                <button
+                  onClick={() => setGenerateHaulBody(`{
+  "bodyType": "hourglass",
+  "styleVibe": "minimalist",
+  "budget": "$$$",
+  "shoppingFor": "work-office",
+  "colorPreferences": "neutral",
+  "gender": "women's",
+  "favoriteBrands": ["Everlane", "Cuyana"]
+}`)}
+                  className="text-xs px-2 py-1 border border-foreground/20 rounded hover:bg-foreground/5"
+                >
+                  Load Legacy Format
+                </button>
+              </div>
+            </div>
             <textarea
-              value={selectedEndpoint === 'generate-haul' ? generateHaulBody : shuffleBody}
-              onChange={(e) => 
-                selectedEndpoint === 'generate-haul'
-                  ? setGenerateHaulBody(e.target.value)
-                  : setShuffleBody(e.target.value)
-              }
+              value={generateHaulBody}
+              onChange={(e) => setGenerateHaulBody(e.target.value)}
               className="w-full h-64 p-3 border border-foreground/20 rounded font-mono text-sm bg-background resize-none"
               spellCheck={false}
             />
@@ -174,47 +176,98 @@ export default function AdminPage() {
       <div className="mt-8 border-t border-foreground/20 pt-6">
         <h2 className="text-2xl font-semibold mb-4">Endpoint Documentation</h2>
         
-        {selectedEndpoint === 'generate-haul' ? (
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold mb-2">POST /api/generate-haul</h3>
-              <p className="text-sm text-foreground/70 mb-2">
-                Generates a personalized product haul based on a style profile.
-              </p>
-              <div className="bg-foreground/5 p-4 rounded">
-                <p className="text-sm font-mono mb-2"><strong>Required fields:</strong></p>
-                <ul className="text-sm space-y-1 ml-4 list-disc">
-                  <li>bodyType (string)</li>
-                  <li>styleVibe (string)</li>
-                  <li>budget (string)</li>
-                  <li>shoppingFor (string)</li>
-                  <li>colorPreferences (string)</li>
-                </ul>
-                <p className="text-sm font-mono mt-3 mb-2"><strong>Optional fields:</strong></p>
-                <ul className="text-sm space-y-1 ml-4 list-disc">
-                  <li>gender (string, defaults to "women's")</li>
-                  <li>favoriteBrands (string[] or string)</li>
-                </ul>
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-semibold mb-2">POST /api/generate-haul</h3>
+            <p className="text-sm text-foreground/70 mb-2">
+              Generates personalized outfits with products organized into cohesive looks.
+            </p>
+            
+            <div className="bg-foreground/5 p-4 rounded mb-4">
+              <p className="text-sm font-semibold mb-2">New Format (Recommended):</p>
+              <div className="bg-background p-3 rounded mb-3">
+                <pre className="text-xs font-mono overflow-auto whitespace-pre-wrap break-words">
+{`{
+  "quiz": {
+    "styles": ["minimalist", "classic"],
+    "occasions": ["work-office", "everyday-casual"],
+    "bodyType": "hourglass",
+    "fitPreference": "tailored",
+    "budgetRange": "$$$",
+    "avoidances": [],
+    "mustHaves": ["outerwear", "shoes"],
+    "colorPreferences": "neutral",
+    "favoriteBrands": ["Everlane", "Cuyana"],
+    "gender": "female"
+  }
+}`}
+                </pre>
+              </div>
+              <p className="text-sm font-mono mb-2"><strong>Quiz object fields:</strong></p>
+              <ul className="text-sm space-y-1 ml-4 list-disc">
+                <li><strong>styles</strong> (string[], required): Style aesthetics e.g. ["minimalist", "classic"]</li>
+                <li><strong>occasions</strong> (string[], required): Use cases e.g. ["work-office", "everyday-casual"]</li>
+                <li><strong>bodyType</strong> (string, required): Body type e.g. "hourglass", "athletic", "petite"</li>
+                <li><strong>fitPreference</strong> (string, optional): "fitted", "relaxed", "oversized", "tailored"</li>
+                <li><strong>budgetRange</strong> (string, required): "$", "$$", "$$$", "$$$$", "$$$$$"</li>
+                <li><strong>avoidances</strong> (string[], optional): Things to avoid</li>
+                <li><strong>mustHaves</strong> (string[], optional): Required categories</li>
+                <li><strong>colorPreferences</strong> (string, optional): "neutral", "bold", "pastel", "mixed"</li>
+                <li><strong>favoriteBrands</strong> (string[], optional): Preferred brands</li>
+                <li><strong>gender</strong> (string, optional): "male", "female", "unisex" (defaults to "female")</li>
+              </ul>
+            </div>
+
+            <div className="bg-foreground/5 p-4 rounded">
+              <p className="text-sm font-semibold mb-2">Legacy Format (Backward Compatible):</p>
+              <div className="bg-background p-3 rounded mb-3">
+                <pre className="text-xs font-mono overflow-auto whitespace-pre-wrap break-words">
+{`{
+  "bodyType": "hourglass",
+  "styleVibe": "minimalist",
+  "budget": "$$$",
+  "shoppingFor": "work-office",
+  "colorPreferences": "neutral",
+  "gender": "women's",
+  "favoriteBrands": ["Everlane", "Cuyana"]
+}`}
+                </pre>
+              </div>
+              <p className="text-xs text-foreground/70 italic mb-2">Note: Legacy format is automatically converted to quiz format</p>
+              <p className="text-xs text-foreground/70 italic">Note: Gender can also be specified at the top level (e.g., {"{"}"gender": "female"{"}"}) and will be used for product filtering</p>
+            </div>
+
+            <div className="bg-blue-500/10 p-4 rounded mt-4">
+              <p className="text-sm font-semibold mb-2">Response Format:</p>
+              <div className="bg-background p-3 rounded mb-2">
+                <pre className="text-xs font-mono overflow-auto whitespace-pre-wrap break-words">
+{`{
+  "haulId": "haul_1234567890_abc123",
+  "outfits": [
+    {
+      "name": "Casual Weekend",
+      "occasion": "Relaxed brunch or coffee",
+      "items": [
+        {
+          "outfitName": "Casual Weekend",
+          "outfitOccasion": "Relaxed brunch or coffee",
+          "category": "top",
+          "reasoning": "Cozy but polished...",
+          "query": "oversized cream cable knit sweater",
+          "product": { ... },
+          "alternatives": [ ... ]
+        }
+      ]
+    }
+  ],
+  "versatilePieces": [ ... ],
+  "products": [ ... ]  // Flat array for backward compatibility
+}`}
+                </pre>
               </div>
             </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold mb-2">POST /api/shuffle</h3>
-              <p className="text-sm text-foreground/70 mb-2">
-                Returns a random selection of fashion products.
-              </p>
-              <div className="bg-foreground/5 p-4 rounded">
-                <p className="text-sm font-mono mb-2"><strong>Optional fields:</strong></p>
-                <ul className="text-sm space-y-1 ml-4 list-disc">
-                  <li>keptIds (string[], defaults to [])</li>
-                  <li>count (number, defaults to 12)</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

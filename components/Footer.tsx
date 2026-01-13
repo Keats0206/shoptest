@@ -15,7 +15,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-sm text-neutral-600">
-              Personal styling without the subscription
+              Instant personal styling—free, no commitment, shop anywhere
             </p>
           </div>
 

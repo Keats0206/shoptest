@@ -3,6 +3,10 @@ import { Averia_Serif_Libre } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+import FeedbackButton from "@/components/FeedbackButton";
+import { AuthProvider } from "@/components/AuthProvider";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const averiaSerif = Averia_Serif_Libre({
   variable: "--font-averia-serif",
@@ -11,8 +15,8 @@ const averiaSerif = Averia_Serif_Libre({
 });
 
 export const metadata: Metadata = {
-  title: "ShopPal - Personal Styling Without the Subscription",
-  description: "Get 12 pieces curated for your style, body type, and budget. Free style quiz, no subscription required. Save 20+ shopping hours.",
+  title: "ShopPal - Personal Styling, Minus the Bullshit",
+  description: "Get your personal styling box instantly—without the box, the wait, or the $20 fee. AI generates complete, cohesive outfit drops in 2 minutes based on your style quiz. Get 12 personalized pieces you can buy anywhere (or nowhere), immediately.",
 };
 
 export default function RootLayout({
@@ -25,9 +29,14 @@ export default function RootLayout({
       <body
         className={`${averiaSerif.variable} font-serif antialiased flex flex-col min-h-screen`}
       >
-        <Navigation />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <AuthProvider>
+          <Navigation />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <FeedbackButton />
+          <Analytics />
+          <SpeedInsights />
+        </AuthProvider>
       </body>
     </html>
   );
