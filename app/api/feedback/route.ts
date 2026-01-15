@@ -12,7 +12,7 @@ async function sendEmail(email: string, feedback: string, userEmail?: string) {
   console.log('=== FEEDBACK EMAIL (MOCKED) ===');
   console.log('To: your-email@example.com');
   console.log('From:', userEmail || 'anonymous');
-  console.log('Subject: New Feedback from ShopPal');
+  console.log('Subject: New Feedback from StyleRun');
   console.log('Body:', feedback);
   console.log('==============================');
   

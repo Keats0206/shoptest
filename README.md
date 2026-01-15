@@ -1,6 +1,6 @@
-# ShopPal - AI-Powered Personal Styling App
+# StyleRun - AI-Powered Personal Styling App
 
-**ShopPal** is an MVP that validates whether AI can give personalized fashion recommendations that people actually want. Built with Next.js 14+, TypeScript, Tailwind CSS, Anthropic (Claude), and Channel3 API.
+**StyleRun** is an MVP that validates whether AI can give personalized fashion recommendations that people actually want. Built with Next.js 14+, TypeScript, Tailwind CSS, Anthropic (Claude), and Channel3 API.
 
 ## Features
 
@@ -170,7 +170,7 @@ Track engagement through:
 
 ## Authentication Flow
 
-ShopPal uses an **anonymous-first** approach:
+StyleRun uses an **anonymous-first** approach:
 
 1. **Anonymous Experience**: Users can take the quiz and see their drop immediately without signing up
 2. **Auth Gates**: Authentication is required for:

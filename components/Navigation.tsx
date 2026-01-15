@@ -32,7 +32,7 @@ export default function Navigation() {
             {/* Logo */}
             <Link href="/" className="flex items-center">
               <span className="text-xl md:text-2xl font-serif font-bold tracking-tight">
-                ShopPal
+                StyleRun
               </span>
             </Link>
 
@@ -85,7 +85,7 @@ export default function Navigation() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleAuthSuccess}
-        title="Sign in to ShopPal"
+        title="Sign in to StyleRun"
         message="Save your looks, refine recommendations, and access your style profile"
       />
     </>

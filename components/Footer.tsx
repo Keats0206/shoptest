@@ -11,7 +11,7 @@ export default function Footer() {
           <div>
             <Link href="/" className="inline-block mb-4">
               <span className="text-xl font-serif font-bold tracking-tight">
-                ShopPal
+                StyleRun
               </span>
             </Link>
             <p className="text-sm text-neutral-600">
@@ -65,7 +65,7 @@ export default function Footer() {
         {/* Copyright */}
         <div className="pt-8 border-t border-neutral-200">
           <p className="text-xs text-neutral-500 text-center">
-            © {currentYear} ShopPal. All rights reserved.
+            © {currentYear} StyleRun. All rights reserved.
           </p>
         </div>
       </div>

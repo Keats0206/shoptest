@@ -80,7 +80,7 @@ const SPEND_MORE_OPTIONS = [
   { value: "nothing", label: "Nothing" },
 ];
 
-const QUIZ_STORAGE_KEY = 'shoppal_quiz_progress';
+const QUIZ_STORAGE_KEY = 'stylerun_quiz_progress';
 
 export default function QuizForm() {
   const router = useRouter();

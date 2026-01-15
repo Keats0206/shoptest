@@ -15,8 +15,8 @@ const averiaSerif = Averia_Serif_Libre({
 });
 
 export const metadata: Metadata = {
-  title: "ShopPal - Personal Styling, Minus the Bullshit",
-  description: "Get your personal styling box instantly—without the box, the wait, or the $20 fee. AI generates complete, cohesive outfit drops in 2 minutes based on your style quiz. Get 12 personalized pieces you can buy anywhere (or nowhere), immediately.",
+  title: "StyleRun - Your Personal Stylist, Reimagined",
+  description: "Discover your signature style in minutes. AI-powered personal styling that delivers complete, curated looks tailored to you—no subscription, no wait, just pure style inspiration. Get 6 outfit ideas personalized to your taste, ready to shop anywhere.",
 };
 
 export default function RootLayout({

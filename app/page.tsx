@@ -9,7 +9,7 @@ export default function Home() {
         {/* Hero Content */}
         <div className="relative z-10 text-center mb-20">
           <h1 className="text-7xl md:text-8xl font-serif font-bold mb-8 tracking-tight bg-gradient-to-b from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
-            ShopPal
+            StyleRun
           </h1>
           
           {/* Primary Value Prop - Specific Pain Point */}
@@ -72,7 +72,7 @@ export default function Home() {
         {/* Value Props Section */}
         <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-10 md:p-16 max-w-5xl mx-auto mb-24">
           <h3 className="text-2xl md:text-3xl font-medium mb-10 text-center uppercase tracking-wide">
-            Why ShopPal?
+            Why StyleRun?
           </h3>
           <div className="grid md:grid-cols-2 gap-8">
             <div className="space-y-4">
