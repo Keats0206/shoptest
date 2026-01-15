@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS drops (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   haul_id TEXT NOT NULL,
   products JSONB NOT NULL,
+  outfitIdeas JSONB,
+  outfits JSONB,
   queries TEXT[],
   profile JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -53,13 +55,16 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers for updated_at
+-- Triggers for updated_at (use DROP IF EXISTS to avoid errors on re-run)
+DROP TRIGGER IF EXISTS update_drops_updated_at ON drops;
 CREATE TRIGGER update_drops_updated_at BEFORE UPDATE ON drops
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_preferences_updated_at ON user_preferences;
 CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferences
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_price_tracking_updated_at ON price_tracking;
 CREATE TRIGGER update_price_tracking_updated_at BEFORE UPDATE ON price_tracking
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

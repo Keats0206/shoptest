@@ -18,7 +18,7 @@ export default function Home() {
           </h2>
           
           <p className="text-xl md:text-2xl text-neutral-600 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Get complete outfit drops in 2 minutes—no subscription, no styling fee, no waiting. Shop anywhere you want, or don't shop at all. Your style, your way.
+            Get 6 outfit ideas personalized to you in 2 minutes—no subscription, no styling fee, no waiting. See how your stylist puts looks together.
           </p>
 
           {/* De-risking CTA */}
@@ -27,7 +27,7 @@ export default function Home() {
               href="/quiz"
               className="inline-block px-10 py-5 bg-black text-white hover:bg-neutral-900 transition-colors font-medium text-lg uppercase tracking-wide shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
             >
-              Get my free drop
+              Get Styled
             </Link>
             <p className="text-base text-neutral-500 mt-4">
               Free • No subscription • Takes 2 minutes
@@ -55,7 +55,7 @@ export default function Home() {
             <div className="text-4xl mb-4">🎯</div>
             <h3 className="font-medium mb-3 uppercase tracking-wide text-base">Complete Outfits, Not Random Items</h3>
             <p className="text-base text-neutral-600 leading-relaxed">
-              AI generates complete, cohesive outfit drops in 2 minutes. Get 12 pieces that work together as complete outfits—curated for your style, body type, and occasions
+              AI generates 6 complete outfit ideas in 2 minutes. Each look includes 4 pieces that work together—curated for your style, body type, and occasions
             </p>
           </div>
 
@@ -64,7 +64,7 @@ export default function Home() {
             <div className="text-4xl mb-4">💰</div>
             <h3 className="font-medium mb-3 uppercase tracking-wide text-base">Shop Anywhere, Or Nowhere</h3>
             <p className="text-base text-neutral-600 leading-relaxed">
-              Get 12 personalized pieces you can buy anywhere (or nowhere), immediately. See all prices upfront. No hidden fees, no commitment
+              Get 6 complete looks you can buy anywhere (or nowhere), immediately. See all prices upfront. No hidden fees, no commitment
             </p>
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function Home() {
                 <div className="text-3xl font-bold text-black shrink-0">🎯</div>
                 <div>
                   <h4 className="font-medium text-base uppercase tracking-wide mb-1">Complete Outfits</h4>
-                  <p className="text-sm text-neutral-600">12 pieces curated to work together as cohesive outfits, not random items.</p>
+                  <p className="text-sm text-neutral-600">6 outfit ideas, each with 4 pieces that work together as cohesive looks, not random items.</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -164,7 +164,7 @@ export default function Home() {
             href="/quiz"
             className="inline-block px-10 py-5 bg-black text-white hover:bg-neutral-900 transition-colors font-medium text-lg uppercase tracking-wide"
           >
-            Get my free drop
+            Get Styled
           </Link>
           <p className="text-base text-neutral-500 mt-4">
             No subscription • No commitment • Free to try

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuth } from './AuthProvider';
 
 interface HaulData {
   haulId: string;
@@ -18,21 +19,46 @@ interface HaulData {
     reason?: string;
     category?: string;
   }>;
+  outfitIdeas?: any[];
+  outfits?: any[];
   queries?: string[];
   createdAt: string;
 }
 
 export default function StyleDropsShowcase() {
   const router = useRouter();
+  const { user } = useAuth();
   const [drops, setDrops] = useState<HaulData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Load all hauls from localStorage
+    const loadDrops = async () => {
+      if (typeof window === 'undefined') return;
+      
       const allHauls: HaulData[] = [];
       
-      // Check all localStorage keys that start with 'haul_'
+      // If user is authenticated, load from database
+      if (user) {
+        try {
+          const response = await fetch('/api/drops/list');
+          if (response.ok) {
+            const data = await response.json();
+            const dbDrops: HaulData[] = (data.drops || []).map((drop: any) => ({
+              haulId: drop.haul_id,
+              products: drop.products || [],
+              outfitIdeas: drop.outfitIdeas || drop.outfits,
+              outfits: drop.outfits,
+              queries: drop.queries || [],
+              createdAt: drop.created_at || drop.createdAt,
+            }));
+            allHauls.push(...dbDrops);
+          }
+        } catch (err) {
+          console.error('Error loading drops from database:', err);
+        }
+      }
+      
+      // Also load from localStorage (for anonymous or as fallback)
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('haul_')) {
@@ -40,14 +66,19 @@ export default function StyleDropsShowcase() {
             const stored = localStorage.getItem(key);
             if (stored) {
               const data = JSON.parse(stored);
-              // Extract haulId from key (format: haul_${haulId})
               const haulId = key.replace('haul_', '');
-              allHauls.push({
-                haulId,
-                products: data.products || [],
-                queries: data.queries || [],
-                createdAt: data.createdAt || new Date().toISOString(),
-              });
+              
+              // Skip if already loaded from database
+              if (!allHauls.find(h => h.haulId === haulId)) {
+                allHauls.push({
+                  haulId,
+                  products: data.products || [],
+                  outfitIdeas: data.outfitIdeas,
+                  outfits: data.outfits,
+                  queries: data.queries || [],
+                  createdAt: data.createdAt || new Date().toISOString(),
+                });
+              }
             }
           } catch (err) {
             console.error(`Error parsing haul ${key}:`, err);
@@ -62,8 +93,10 @@ export default function StyleDropsShowcase() {
       
       setDrops(allHauls.slice(0, 4));
       setLoading(false);
-    }
-  }, []);
+    };
+    
+    loadDrops();
+  }, [user]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -99,7 +132,7 @@ export default function StyleDropsShowcase() {
       {/* Section Header */}
       <div className="mb-8 md:mb-12 text-center">
         <h2 className="text-3xl md:text-4xl font-medium mb-3 uppercase tracking-tight">
-          Your Style Drops
+          Your Looks
         </h2>
         <p className="text-sm text-neutral-600 mb-4">
           Your personalized styling collections
@@ -108,11 +141,11 @@ export default function StyleDropsShowcase() {
           href="/drops"
           className="text-sm text-neutral-500 hover:text-neutral-900 uppercase tracking-wide transition-colors inline-flex items-center gap-2"
         >
-          See all drops →
+          See all looks →
         </Link>
       </div>
 
-      {/* Drops Grid */}
+      {/* Looks Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {drops.map((drop, index) => {
           // Vary rotation for visual interest
@@ -148,7 +181,7 @@ export default function StyleDropsShowcase() {
                   ))}
                 </div>
 
-                {/* Drop Info */}
+                {/* Look Info */}
                 <div className="p-4">
                   <p className="text-xs text-neutral-500 uppercase tracking-wide mb-2">
                     {formatDate(drop.createdAt)}
@@ -157,7 +190,7 @@ export default function StyleDropsShowcase() {
                     {drop.products.length} pieces
                   </p>
                   <p className="text-xs text-neutral-400 group-hover:text-neutral-600 transition-colors">
-                    View drop →
+                    View look →
                   </p>
                 </div>
               </div>

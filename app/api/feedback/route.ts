@@ -25,17 +25,47 @@ async function sendEmail(email: string, feedback: string, userEmail?: string) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { feedback, email } = body;
+    const { feedback, email, rating, wouldWear, textFeedback, haulId } = body;
 
-    if (!feedback || !feedback.trim()) {
+    // Support both old format (feedback, email) and new format (rating, wouldWear, textFeedback, haulId)
+    if (feedback) {
+      // Old format - general feedback
+      if (!feedback.trim()) {
+        return NextResponse.json(
+          { error: 'Feedback is required' },
+          { status: 400 }
+        );
+      }
+      // Mock sending the email
+      await sendEmail('your-email@example.com', feedback, email);
+    } else if (rating !== undefined && wouldWear) {
+      // New format - drop feedback
+      if (rating < 1 || rating > 5) {
+        return NextResponse.json(
+          { error: 'Rating must be between 1 and 5' },
+          { status: 400 }
+        );
+      }
+      if (!['yes', 'maybe', 'no'].includes(wouldWear)) {
+        return NextResponse.json(
+          { error: 'wouldWear must be yes, maybe, or no' },
+          { status: 400 }
+        );
+      }
+      
+      // Log feedback (in production, you'd store this in a database)
+      console.log('=== DROP FEEDBACK ===');
+      console.log('Haul ID:', haulId);
+      console.log('Rating:', rating);
+      console.log('Would Wear:', wouldWear);
+      console.log('Text Feedback:', textFeedback || '(none)');
+      console.log('==================');
+    } else {
       return NextResponse.json(
-        { error: 'Feedback is required' },
+        { error: 'Either feedback or rating/wouldWear is required' },
         { status: 400 }
       );
     }
-
-    // Mock sending the email
-    await sendEmail('your-email@example.com', feedback, email);
 
     return NextResponse.json(
       { message: 'Feedback sent successfully' },

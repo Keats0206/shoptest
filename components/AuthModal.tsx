@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from './AuthProvider';
+import { track } from '@vercel/analytics';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -10,6 +12,8 @@ interface AuthModalProps {
   onSuccess?: () => void;
   title?: string;
   message?: string;
+  trigger?: string; // Track what triggered auth
+  haulId?: string; // For tracking context
 }
 
 export default function AuthModal({
@@ -18,6 +22,8 @@ export default function AuthModal({
   onSuccess,
   title = 'Sign in to continue',
   message = 'Sign in to save and refine your drops',
+  trigger,
+  haulId,
 }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,14 +32,31 @@ export default function AuthModal({
   const [authMethod, setAuthMethod] = useState<'email' | 'oauth' | null>(null);
   const supabase = createClient();
   const { user } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Store redirect path when modal opens
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      const currentPath = pathname + (window.location.search || '');
+      localStorage.setItem('auth_redirect_path', currentPath);
+    }
+  }, [isOpen, pathname]);
 
   // Close if user is already authenticated
   useEffect(() => {
     if (user && isOpen) {
+      // Track successful auth
+      track('auth_success', {
+        trigger: trigger || 'navigation',
+        haulId,
+        method: 'already_authenticated',
+      });
+      
       onSuccess?.();
       onClose();
     }
-  }, [user, isOpen, onSuccess, onClose]);
+  }, [user, isOpen, onSuccess, onClose, trigger, haulId]);
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,14 +64,25 @@ export default function AuthModal({
     setError(null);
 
     try {
+      const redirectPath = typeof window !== 'undefined' 
+        ? localStorage.getItem('auth_redirect_path') || pathname 
+        : pathname;
+      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectPath)}`,
         },
       });
 
       if (error) throw error;
+
+      // Track email auth initiated
+      track('auth_initiated', {
+        method: 'email',
+        trigger: trigger || 'navigation',
+        haulId,
+      });
 
       setMagicLinkSent(true);
     } catch (err) {
@@ -63,14 +97,28 @@ export default function AuthModal({
     setError(null);
 
     try {
+      const redirectPath = typeof window !== 'undefined' 
+        ? localStorage.getItem('auth_redirect_path') || pathname 
+        : pathname;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectPath)}`,
         },
       });
 
       if (error) throw error;
+
+      // Track OAuth auth initiated
+      track('auth_initiated', {
+        method: provider,
+        trigger: trigger || 'navigation',
+        haulId,
+      });
+
+      // Note: Loading stays true because user is redirected to OAuth provider
+      // It will be reset when they come back or if there's an error
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);
       setLoading(false);

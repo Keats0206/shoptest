@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { useAuth } from '@/components/AuthProvider';
 
 interface HaulData {
   haulId: string;
@@ -17,21 +18,52 @@ interface HaulData {
     reason?: string;
     category?: string;
   }>;
+  outfitIdeas?: any[];
+  outfits?: any[];
   queries?: string[];
   createdAt: string;
 }
 
 export default function DropsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [drops, setDrops] = useState<HaulData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Load all hauls from localStorage
+    const loadDrops = async () => {
+      if (typeof window === 'undefined') return;
+      
       const allHauls: HaulData[] = [];
       
-      // Check all localStorage keys that start with 'haul_'
+      // If user is authenticated, load from database FIRST
+      if (user) {
+        try {
+          const response = await fetch('/api/drops/list');
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Loaded from database:', data.drops?.length || 0, 'drops');
+            const dbDrops: HaulData[] = (data.drops || []).map((drop: any) => ({
+              haulId: drop.haul_id,
+              products: drop.products || [],
+              outfitIdeas: drop.outfitIdeas || drop.outfits,
+              outfits: drop.outfits,
+              queries: drop.queries || [],
+              createdAt: drop.created_at || drop.createdAt,
+            }));
+            allHauls.push(...dbDrops);
+          } else {
+            console.warn('Database query failed:', response.status, response.statusText);
+          }
+        } catch (err) {
+          console.error('Error loading drops from database:', err);
+        }
+      } else {
+        console.log('User not authenticated, loading from localStorage only');
+      }
+      
+      // Also load from localStorage (for anonymous users or items not yet saved to DB)
+      let localStorageCount = 0;
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('haul_')) {
@@ -39,18 +71,31 @@ export default function DropsPage() {
             const stored = localStorage.getItem(key);
             if (stored) {
               const data = JSON.parse(stored);
-              // Extract haulId from key (format: haul_${haulId})
               const haulId = key.replace('haul_', '');
-              allHauls.push({
-                haulId,
-                products: data.products || [],
-                queries: data.queries || [],
-                createdAt: data.createdAt || new Date().toISOString(),
-              });
+              
+              // Skip if already loaded from database (database is source of truth for authenticated users)
+              if (!allHauls.find(h => h.haulId === haulId)) {
+                allHauls.push({
+                  haulId,
+                  products: data.products || [],
+                  outfitIdeas: data.outfitIdeas,
+                  outfits: data.outfits,
+                  queries: data.queries || [],
+                  createdAt: data.createdAt || new Date().toISOString(),
+                });
+                localStorageCount++;
+              }
             }
           } catch (err) {
             console.error(`Error parsing haul ${key}:`, err);
           }
+        }
+      }
+      
+      if (localStorageCount > 0) {
+        console.log('Loaded from localStorage:', localStorageCount, 'drops');
+        if (user) {
+          console.log('💡 Tip: Click "Save Look" on any look to save it to your database');
         }
       }
       
@@ -61,8 +106,10 @@ export default function DropsPage() {
       
       setDrops(allHauls);
       setLoading(false);
-    }
-  }, []);
+    };
+    
+    loadDrops();
+  }, [user]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -77,12 +124,30 @@ export default function DropsPage() {
     router.push(`/haul?id=${haulId}`);
   };
 
-  const handleDeleteDrop = (haulId: string, e: React.MouseEvent) => {
+  const handleDeleteDrop = async (haulId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // Delete from database if authenticated
+    if (user) {
+      try {
+        const response = await fetch(`/api/drops/delete?haulId=${haulId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          console.error('Failed to delete from database');
+        }
+      } catch (err) {
+        console.error('Error deleting from database:', err);
+      }
+    }
+    
+    // Also remove from localStorage
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`haul_${haulId}`);
-      setDrops(prev => prev.filter(drop => drop.haulId !== haulId));
     }
+    
+    // Update UI
+    setDrops(prev => prev.filter(drop => drop.haulId !== haulId));
   };
 
   if (loading) {
@@ -106,26 +171,26 @@ export default function DropsPage() {
         {/* Header */}
         <div className="mb-8 md:mb-12">
           <h1 className="text-3xl md:text-4xl font-medium mb-2 uppercase tracking-tight">
-            My Style Drops
+            My Looks
           </h1>
           <p className="text-sm text-neutral-600 mb-2 italic">
-            Your personalized styling drops, saved digitally
+            Your personalized styling collections, saved digitally
           </p>
           <p className="text-xs text-neutral-500 uppercase tracking-wide">
-            {drops.length} {drops.length === 1 ? 'drop' : 'drops'} saved
+            {drops.length} {drops.length === 1 ? 'look' : 'looks'} saved
           </p>
         </div>
 
         {drops.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-neutral-400 mb-6 text-sm uppercase tracking-wide">
-              No drops yet
+              No looks yet
             </p>
             <button
               onClick={() => router.push('/quiz')}
               className="px-6 py-3 border-2 border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
             >
-              Take Quiz
+              Get Styled
             </button>
           </div>
         ) : (
@@ -181,7 +246,7 @@ export default function DropsPage() {
                   )}
                 </div>
 
-                {/* Drop Info */}
+                {/* Look Info */}
                 <div className="p-4">
                   <p className="text-xs text-neutral-500 uppercase tracking-wide mb-1">
                     {formatDate(drop.createdAt)}

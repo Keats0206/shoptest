@@ -114,10 +114,10 @@ export default function ShareableDropPage() {
           <h1 className="text-2xl font-medium mb-4 uppercase tracking-tight">Drop Not Found</h1>
           <p className="text-neutral-600 mb-8 text-sm">{error}</p>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/quiz')}
             className="px-6 py-3 border-2 border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
           >
-            Take Quiz
+            Get Your Own Drop
           </button>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function ShareableDropPage() {
             onClick={() => router.push('/quiz')}
             className="px-6 py-3 border-2 border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
           >
-            Create Your Own Drop
+            Get Your Own Drop
           </button>
         </div>
       </div>

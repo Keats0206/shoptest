@@ -4,6 +4,53 @@ import { searchProducts } from '@/lib/channel3';
 
 export const runtime = 'nodejs';
 
+// Simple in-memory rate limiting (for MVP - use Redis/KV in production)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 10; // Max 10 hauls per hour per IP
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
+
+function getClientIP(request: NextRequest): string {
+  // Check various headers for IP (Vercel uses x-forwarded-for)
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  const realIP = request.headers.get('x-real-ip');
+  if (realIP) {
+    return realIP;
+  }
+  return 'unknown';
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  // Clean up old entries periodically (every 100 requests, rough approximation)
+  if (Math.random() < 0.01) {
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (value.resetTime < now) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }
+
+  if (!record || record.resetTime < now) {
+    // New or expired window - reset
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1, resetAt: now + RATE_LIMIT_WINDOW };
+  }
+
+  if (record.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0, resetAt: record.resetTime };
+  }
+
+  // Increment count
+  record.count++;
+  rateLimitMap.set(ip, record);
+  return { allowed: true, remaining: RATE_LIMIT_MAX - record.count, resetAt: record.resetTime };
+}
+
 // Helper function to get budget price range
 function getBudgetRange(budgetRange: string): { min: number; max: number } | undefined {
   const budgetRanges: Record<string, { min: number; max: number }> = {
@@ -331,6 +378,27 @@ function validateProductMatch(
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimit = checkRateLimit(clientIP);
+    
+    if (!rateLimit.allowed) {
+      const resetInMinutes = Math.ceil((rateLimit.resetAt - Date.now()) / (60 * 1000));
+      return NextResponse.json(
+        { 
+          error: `Too many requests. Please wait ${resetInMinutes} minute${resetInMinutes !== 1 ? 's' : ''} before creating another look. This helps us keep the service free for everyone.`
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': RATE_LIMIT_MAX.toString(),
+            'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+            'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+          }
+        }
+      );
+    }
+    
     const body = await request.json();
     
     // Support both new quiz format and legacy profile format
@@ -405,7 +473,7 @@ export async function POST(request: NextRequest) {
     // Step 1: Generate outfit structure with Claude
     console.log('Generating outfit structure...');
     const outfitStructure = await generateOutfitStructure(quiz);
-    console.log(`Generated ${outfitStructure.outfits.length} outfits and ${outfitStructure.versatile_pieces.length} versatile pieces`);
+    console.log(`Generated ${outfitStructure.outfits.length} outfit ideas`);
     
     // Validate outfit completeness
     const outfitValidations = outfitStructure.outfits.map(outfit => ({
@@ -425,20 +493,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Extract all items into a single array with outfit context
-    const allItems = [
-      ...outfitStructure.outfits.flatMap(outfit =>
-        outfit.items.map(item => ({
-          ...item,
-          outfitName: outfit.name,
-          outfitOccasion: outfit.occasion,
-        }))
-      ),
-      ...outfitStructure.versatile_pieces.map(item => ({
+    const allItems = outfitStructure.outfits.flatMap(outfit =>
+      outfit.items.map(item => ({
         ...item,
-        outfitName: 'Versatile',
-        outfitOccasion: 'Multiple occasions',
-      })),
-    ];
+        outfitName: outfit.name,
+        outfitOccasion: outfit.occasion,
+        outfitBlurb: outfit.stylistBlurb,
+      }))
+    );
 
     console.log(`Total items to search: ${allItems.length}`);
 
@@ -511,10 +573,11 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // Step 4: Pick best product per item (first result = best match)
+    // Step 4: Pick best product per item (first result = main product, rest as variants)
     const finalItems = searchResults.map((item) => {
       const bestProduct = item.products[0];
-      const alternatives = item.products.slice(1);
+      // Use results 2-8 as variants (up to 7 variants per item)
+      const variants = item.products.slice(1, 8);
 
       if (!bestProduct) {
         console.warn(`No products found for query: "${item.query}"`);
@@ -524,9 +587,11 @@ export async function POST(request: NextRequest) {
       return {
         outfitName: item.outfitName,
         outfitOccasion: item.outfitOccasion,
+        outfitBlurb: item.outfitBlurb,
         category: item.category,
         reasoning: item.reasoning,
         query: item.query,
+        isMain: item.isMain ?? false,
         product: {
           id: bestProduct.id,
           name: bestProduct.name,
@@ -536,14 +601,14 @@ export async function POST(request: NextRequest) {
           currency: bestProduct.currency,
           buyLink: bestProduct.buyLink,
         },
-        alternatives: alternatives.map(alt => ({
-          id: alt.id,
-          name: alt.name,
-          brand: alt.brand,
-          image: alt.image,
-          price: alt.price,
-          currency: alt.currency,
-          buyLink: alt.buyLink,
+        variants: variants.map(variant => ({
+          id: variant.id,
+          name: variant.name,
+          brand: variant.brand,
+          image: variant.image,
+          price: variant.price,
+          currency: variant.currency,
+          buyLink: variant.buyLink,
         })),
       };
     });
@@ -559,25 +624,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 5: Structure for display - group items back into outfits
-    const outfitsWithProducts = outfitStructure.outfits.map(outfit => ({
-      name: outfit.name,
-      occasion: outfit.occasion,
-      items: validItems.filter(item => item.outfitName === outfit.name),
-    }));
+    // Step 5: Structure for display - group items back into outfits with pricing
+    const outfitIdeas = outfitStructure.outfits.map(outfit => {
+      const outfitItems = validItems.filter(item => item.outfitName === outfit.name);
+      
+      // Calculate total price (sum of main 4 items)
+      const totalPrice = outfitItems.reduce((sum, item) => sum + (item.product.price || 0), 0);
+      
+      // Calculate price range including variants
+      const allPrices = outfitItems.flatMap(item => [
+        item.product.price || 0,
+        ...item.variants.map(v => v.price || 0)
+      ]).filter(p => p > 0);
+      
+      const priceRange = allPrices.length > 0 ? {
+        min: Math.min(...allPrices),
+        max: Math.max(...allPrices),
+      } : undefined;
 
-    const versatilePieces = validItems.filter(item => item.outfitName === 'Versatile');
+      return {
+        name: outfit.name,
+        occasion: outfit.occasion,
+        stylistBlurb: outfit.stylistBlurb || '',
+        items: outfitItems,
+        totalPrice,
+        priceRange,
+      };
+    });
 
     // Also create a flat products array for backward compatibility
     const allProducts = validItems.map(item => item.product);
+
+    // Create outfits structure for backward compatibility (old format)
+    const outfitsWithProducts = outfitIdeas.map(outfit => ({
+      name: outfit.name,
+      occasion: outfit.occasion,
+      items: outfit.items,
+    }));
 
     // Create a unique haul ID
     const haulId = `haul_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     return NextResponse.json({
       haulId,
-      outfits: outfitsWithProducts,
-      versatilePieces,
+      outfitIdeas, // New structure with blurbs and pricing
+      outfits: outfitsWithProducts, // Backward compatibility
       products: allProducts, // Backward compatibility
       quiz, // Store quiz data for future refinements
     });
@@ -586,9 +677,27 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const isDev = process.env.NODE_ENV === 'development';
 
+    // Return user-friendly error messages
+    let userFriendlyError = 'Something went wrong. Please try again.';
+    
+    if (error instanceof Error) {
+      // Check for specific error types from our API wrappers
+      if (error.message.includes('style recommendations')) {
+        userFriendlyError = 'We\'re having trouble generating your style recommendations. Please try again.';
+      } else if (error.message.includes('finding products') || error.message.includes('product catalog')) {
+        userFriendlyError = 'We\'re having trouble finding products right now. Please try again in a moment.';
+      } else if (error.message.includes('Too many requests') || error.message.includes('429')) {
+        userFriendlyError = 'Too many requests. Please wait a moment and try again.';
+      } else if (error.message.includes('Service temporarily unavailable') || error.message.includes('402')) {
+        userFriendlyError = 'Service temporarily unavailable. Please try again later.';
+      } else if (error.message.includes('accessing the product catalog') || error.message.includes('403') || error.message.includes('401')) {
+        userFriendlyError = 'We\'re having trouble accessing the product catalog. Please try again.';
+      }
+    }
+
     return NextResponse.json(
       {
-        error: 'Failed to generate haul. Please try again.',
+        error: userFriendlyError,
         ...(isDev && { details: errorMessage, stack: error instanceof Error ? error.stack : undefined }),
       },
       { status: 500 }

@@ -39,6 +39,8 @@ export interface Channel3EnrichedProduct {
   variants: any[];
 }
 
+import { retryWithBackoff } from './retry';
+
 export interface SearchFilters {
   gender?: 'male' | 'female' | 'unisex';
   price?: {
@@ -61,13 +63,16 @@ export async function searchProducts(
     throw new Error('CHANNEL3_API_KEY is not set');
   }
 
+  const apiKey = process.env.CHANNEL3_API_KEY;
   const baseUrl = process.env.CHANNEL3_API_URL || 'https://api.trychannel3.com';
   
   try {
-    const requestBody: any = {
-      query,
-      limit: Math.min(limit, 30), // API max is 30
-    };
+    // Wrap the API call in retry logic
+    return await retryWithBackoff(async () => {
+      const requestBody: any = {
+        query,
+        limit: Math.min(limit, 30), // API max is 30
+      };
     
     // Build filters object
     const apiFilters: any = {};
@@ -114,7 +119,7 @@ export async function searchProducts(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.CHANNEL3_API_KEY,
+        'x-api-key': apiKey,
       },
       body: JSON.stringify(requestBody),
     });
@@ -210,8 +215,25 @@ export async function searchProducts(
     console.warn('Channel3 API returned unexpected format:', JSON.stringify(data).substring(0, 500));
     console.warn('Expected: { results: [...] }, { products: [...] } or [...], but got:', typeof data, Object.keys(data || {}));
     return [];
+    }, 2, 1000);
   } catch (error) {
     console.error('Error searching Channel3 for query:', query, error);
+    
+    // Convert API errors to user-friendly messages
+    if (error instanceof Error) {
+      if (error.message.includes('402') || error.message.includes('Payment Required')) {
+        throw new Error('Service temporarily unavailable. Please try again later.');
+      }
+      if (error.message.includes('429') || error.message.includes('Rate Limited')) {
+        throw new Error('Too many requests. Please wait a moment and try again.');
+      }
+      if (error.message.includes('403') || error.message.includes('401')) {
+        throw new Error('We\'re having trouble accessing the product catalog. Please try again.');
+      }
+      // Generic error message for users
+      throw new Error('We\'re having trouble finding products right now. Please try again in a moment.');
+    }
+    
     // Return empty array on error to allow other queries to continue
     // The generate-haul route will handle the case where all queries fail
     return [];
@@ -223,17 +245,20 @@ export async function enrichProduct(url: string): Promise<Channel3EnrichedProduc
     throw new Error('CHANNEL3_API_KEY is not set');
   }
 
+  const apiKey = process.env.CHANNEL3_API_KEY;
   const baseUrl = process.env.CHANNEL3_API_URL || 'https://api.trychannel3.com';
   
   try {
-    const response = await fetch(`${baseUrl}/v0/enrich`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.CHANNEL3_API_KEY,
-      },
-      body: JSON.stringify({ url }),
-    });
+    // Wrap the API call in retry logic
+    return await retryWithBackoff(async () => {
+      const response = await fetch(`${baseUrl}/v0/enrich`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        },
+        body: JSON.stringify({ url }),
+      });
 
     if (!response.ok) {
       let errorText: string;
@@ -264,8 +289,25 @@ export async function enrichProduct(url: string): Promise<Channel3EnrichedProduc
 
     const data = await response.json();
     return data as Channel3EnrichedProduct;
+    }, 2, 1000);
   } catch (error) {
     console.error('Error enriching product from Channel3:', url, error);
+    
+    // Convert API errors to user-friendly messages
+    if (error instanceof Error) {
+      if (error.message.includes('402') || error.message.includes('Payment Required')) {
+        throw new Error('Service temporarily unavailable. Please try again later.');
+      }
+      if (error.message.includes('429') || error.message.includes('Rate Limited')) {
+        throw new Error('Too many requests. Please wait a moment and try again.');
+      }
+      if (error.message.includes('403') || error.message.includes('401')) {
+        throw new Error('We\'re having trouble accessing the product catalog. Please try again.');
+      }
+      // Generic error message for users
+      throw new Error('We\'re having trouble finding products right now. Please try again in a moment.');
+    }
+    
     return null;
   }
 }

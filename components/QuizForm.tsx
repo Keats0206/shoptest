@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { track } from '@vercel/analytics';
 
@@ -86,6 +86,17 @@ export default function QuizForm() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(-1); // Start at -1 to show intro
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingStage, setLoadingStage] = useState(0);
+  const stageIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  const loadingStages = [
+    "Talking to your stylist...",
+    "Curating 6 outfit ideas...",
+    "Finding perfect pieces...",
+    "Putting looks together...",
+    "Almost ready...",
+  ];
+  const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   const [answers, setAnswers] = useState<QuizAnswers>({
     styleVibes: [],
     lifestyleContexts: [],
@@ -125,23 +136,23 @@ export default function QuizForm() {
   const steps = [
     {
       id: 'style',
-      title: "Select your style vibes",
-      subtitle: "Choose all that resonate with you",
+      title: "What's your style?",
+      subtitle: "Tell us what you love",
     },
     {
       id: 'lifestyle',
-      title: "What do you need outfits for?",
-      subtitle: "Select all that apply",
+      title: "Where do you wear these?",
+      subtitle: "Tell us about your life",
     },
     {
       id: 'fit',
-      title: "Fit & preferences",
-      subtitle: "Help us understand your needs (all optional)",
+      title: "How do you like things to fit?",
+      subtitle: "Help us find your perfect fit (optional)",
     },
     {
       id: 'budget',
-      title: "Budget & priorities",
-      subtitle: "Tell us your price range",
+      title: "What's your budget?",
+      subtitle: "So we can find pieces you'll love",
     },
   ];
 
@@ -150,6 +161,7 @@ export default function QuizForm() {
 
   const handleStartQuiz = () => {
     setCurrentStep(0);
+    setQuizStartTime(Date.now());
   };
 
   const toggleMultiSelect = (arrayKey: keyof QuizAnswers, value: string) => {
@@ -182,6 +194,16 @@ export default function QuizForm() {
     }
 
     setIsSubmitting(true);
+    setLoadingStage(0);
+    
+    // Cycle through loading stages to keep user engaged
+    stageIntervalRef.current = setInterval(() => {
+      setLoadingStage((prev) => {
+        const next = prev + 1;
+        // Don't go past last stage
+        return next >= loadingStages.length ? prev : next;
+      });
+    }, 2000); // Change stage every 2 seconds
 
     try {
       // Clear saved progress
@@ -237,14 +259,17 @@ export default function QuizForm() {
       if (typeof window !== 'undefined') {
         const haulData = {
           products: data.products || [],
-          outfits: data.outfits || [],
-          versatilePieces: data.versatilePieces || [],
+          outfitIdeas: data.outfitIdeas || [],
+          outfits: data.outfits || [], // Backward compatibility
           quiz: data.quiz || quiz,
           createdAt: new Date().toISOString(),
         };
         sessionStorage.setItem(`haul_${haulId}`, JSON.stringify(haulData));
         localStorage.setItem(`haul_${haulId}`, JSON.stringify(haulData));
       }
+      
+      // Calculate quiz duration
+      const quizDuration = quizStartTime ? Math.round((Date.now() - quizStartTime) / 1000) : 0;
       
       track('quiz_completion', {
         styleVibes: answers.styleVibes.join(','),
@@ -254,13 +279,44 @@ export default function QuizForm() {
         painPointsCount: answers.shoppingPainPoints.length,
       });
       
+      // Track drop_completed event
+      track('drop_completed', {
+        haulId,
+        productCount: data.products?.length || 0,
+        outfitCount: data.outfits?.length || 0,
+        quizDuration,
+      });
+      
+      // Clear loading interval before navigation
+      if (stageIntervalRef.current) {
+        clearInterval(stageIntervalRef.current);
+        stageIntervalRef.current = null;
+      }
+      
       router.push(`/haul?id=${haulId}`);
     } catch (error) {
       console.error('Error generating haul:', error);
       setIsSubmitting(false);
+      setLoadingStage(0);
+      
+      // Clear loading interval on error
+      if (stageIntervalRef.current) {
+        clearInterval(stageIntervalRef.current);
+        stageIntervalRef.current = null;
+      }
+      
       alert(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
     }
   };
+  
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (stageIntervalRef.current) {
+        clearInterval(stageIntervalRef.current);
+      }
+    };
+  }, []);
 
   const canProceed = currentStep < 0
     ? false // Intro screen
@@ -287,11 +343,24 @@ export default function QuizForm() {
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-lg font-medium uppercase tracking-wide">Creating your drop</p>
+              <p className="text-lg font-medium uppercase tracking-wide transition-opacity duration-500">
+                {loadingStages[loadingStage]}
+              </p>
               <div className="flex justify-center gap-1">
                 <span className="w-1 h-1 bg-black rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                 <span className="w-1 h-1 bg-black rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                 <span className="w-1 h-1 bg-black rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              </div>
+              {/* Progress indicator */}
+              <div className="mt-4 max-w-xs mx-auto">
+                <div className="h-1 bg-neutral-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-black transition-all duration-500 ease-out"
+                    style={{ 
+                      width: `${((loadingStage + 1) / loadingStages.length) * 100}%` 
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -303,24 +372,24 @@ export default function QuizForm() {
         {currentStep === -1 && (
           <div className="text-center py-12">
             <h1 className="text-3xl font-medium mb-4 uppercase tracking-tight">
-              Your stylist, instantly
+              Tell your stylist about you
             </h1>
             <p className="text-xl font-medium mb-2 uppercase tracking-wide text-neutral-600">
-              Styled in 2 minutes, not 2 weeks
+              A quick conversation to get your perfect drop
             </p>
             <div className="mt-8 mb-10 space-y-4 text-left">
               <div className="flex items-start gap-4">
-                <div className="text-2xl font-bold text-black shrink-0">12</div>
+                <div className="text-2xl font-bold text-black shrink-0">6</div>
                 <div>
-                  <div className="font-medium text-sm uppercase tracking-wide mb-1">Curated pieces</div>
-                  <div className="text-xs text-neutral-500 uppercase tracking-wide">Handpicked for your style</div>
+                  <div className="font-medium text-sm uppercase tracking-wide mb-1">Complete outfit ideas</div>
+                  <div className="text-xs text-neutral-500 uppercase tracking-wide">Styled looks you can wear right away</div>
                 </div>
               </div>
               <div className="flex items-start gap-4">
                 <div className="text-2xl font-bold text-black shrink-0">2</div>
                 <div>
                   <div className="font-medium text-sm uppercase tracking-wide mb-1">Minutes</div>
-                  <div className="text-xs text-neutral-500 uppercase tracking-wide">Quick style quiz</div>
+                  <div className="text-xs text-neutral-500 uppercase tracking-wide">Quick conversation</div>
                 </div>
               </div>
             </div>
@@ -329,7 +398,7 @@ export default function QuizForm() {
               onClick={handleStartQuiz}
               className="w-full px-6 py-4 bg-black text-white hover:bg-neutral-900 transition-colors font-medium text-sm uppercase tracking-wide"
             >
-              Start Style Quiz
+              Start Conversation
             </button>
           </div>
         )}
@@ -343,8 +412,8 @@ export default function QuizForm() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-neutral-500 mt-2 text-center uppercase tracking-wide">
-              {currentStep + 1} of {steps.length}
+              <p className="text-xs text-neutral-500 mt-2 text-center uppercase tracking-wide">
+              Question {currentStep + 1} of {steps.length}
             </p>
           </div>
         )}
@@ -626,7 +695,7 @@ export default function QuizForm() {
                 disabled={!canProceed || isSubmitting}
                 className="flex-1 px-6 py-3 bg-black text-white hover:bg-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm uppercase tracking-wide"
               >
-                {isSubmitting ? 'Creating your drop...' : 'Generate my haul'}
+                {isSubmitting ? 'Creating...' : 'Get my looks'}
               </button>
             )}
           </div>

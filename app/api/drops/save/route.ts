@@ -14,9 +14,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { haulId, products, queries, profile } = body;
+    const { haulId, products, outfitIdeas, outfits, queries, profile, quiz } = body;
 
-    if (!haulId || !products || !Array.isArray(products)) {
+    if (!haulId || (!products && !outfitIdeas)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -28,9 +28,11 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         haul_id: haulId,
-        products,
+        products: products || [],
+        outfitIdeas: outfitIdeas || null,
+        outfits: outfits || null, // Backward compatibility
         queries: queries || [],
-        profile: profile || null,
+        profile: profile || quiz || null, // Support both profile and quiz
         is_anonymous: false,
         share_token: shareToken,
       })
@@ -43,9 +45,11 @@ export async function POST(request: NextRequest) {
         const { data: updated, error: updateError } = await supabase
           .from('drops')
           .update({
-            products,
+            products: products || [],
+            outfitIdeas: outfitIdeas || null,
+            outfits: outfits || null, // Backward compatibility
             queries: queries || [],
-            profile: profile || null,
+            profile: profile || quiz || null, // Support both profile and quiz
             updated_at: new Date().toISOString(),
           })
           .eq('user_id', user.id)
