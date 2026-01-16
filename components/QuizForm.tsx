@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { track } from '@vercel/analytics';
+import Image from 'next/image';
 
 export interface QuizAnswers {
   styleVibes: string[]; // Multi-select for Slide 1
@@ -19,12 +20,10 @@ const STYLE_OPTIONS = [
   { value: "minimalist", label: "Minimalist", desc: "Clean lines, simple elegance" },
   { value: "streetwear", label: "Streetwear", desc: "Urban, casual cool" },
   { value: "boho", label: "Boho", desc: "Free-spirited, artistic" },
-  { value: "preppy", label: "Preppy", desc: "Classic, polished" },
   { value: "edgy", label: "Edgy", desc: "Bold, statement-making" },
   { value: "classic", label: "Classic", desc: "Timeless, sophisticated" },
   { value: "romantic", label: "Romantic", desc: "Feminine, delicate" },
   { value: "athleisure", label: "Athleisure", desc: "Comfortable, active-ready" },
-  { value: "tailored", label: "Tailored", desc: "Sharp, polished fits" },
   { value: "relaxed", label: "Relaxed", desc: "Comfortable, effortless" },
 ];
 
@@ -440,10 +439,24 @@ export default function QuizForm() {
                           : 'border-neutral-300 bg-white hover:border-black'
                       }`}
                     >
-                      {/* Placeholder for image - can be replaced with actual images */}
-                      <div className={`w-full h-24 mb-3 ${
-                        isSelected ? 'bg-neutral-800' : 'bg-neutral-100'
-                      }`}></div>
+                      {/* Style image - 2:3 aspect ratio */}
+                      <div className="w-full mb-3 relative" style={{ paddingBottom: '150%' }}>
+                        <div className={`absolute inset-0 overflow-hidden ${
+                          isSelected ? 'bg-neutral-800' : 'bg-neutral-100'
+                        }`}>
+                          <Image 
+                            src={`/styles/${option.value}.png`} 
+                            alt={option.label} 
+                            fill 
+                            className="object-cover" 
+                            onError={(e) => {
+                              // Fallback for missing images (preppy, tailored)
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.style.backgroundColor = isSelected ? '#262626' : '#f5f5f5';
+                            }}
+                          />
+                        </div>
+                      </div>
                       <div className="font-medium text-sm uppercase tracking-wide mb-1">{option.label}</div>
                       <div className={`text-xs uppercase tracking-wide ${
                         isSelected ? 'text-neutral-300' : 'text-neutral-500'

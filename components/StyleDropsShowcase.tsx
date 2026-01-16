@@ -86,12 +86,20 @@ export default function StyleDropsShowcase() {
         }
       }
       
+      // Filter out invalid drops (must have products or outfitIdeas/outfits)
+      const validHauls = allHauls.filter(haul => {
+        const hasProducts = haul.products && haul.products.length > 0;
+        const hasOutfitIdeas = haul.outfitIdeas && haul.outfitIdeas.length > 0;
+        const hasOutfits = haul.outfits && haul.outfits.length > 0;
+        return hasProducts || hasOutfitIdeas || hasOutfits;
+      });
+      
       // Sort by date (newest first) and take only the 4 most recent
-      allHauls.sort((a, b) => 
+      validHauls.sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       
-      setDrops(allHauls.slice(0, 4));
+      setDrops(validHauls.slice(0, 4));
       setLoading(false);
     };
     
