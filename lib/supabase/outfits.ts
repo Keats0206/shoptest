@@ -311,34 +311,38 @@ export async function loadOutfitsFromDatabase(
     const items = (itemsByOutfit.get(outfit.id) || [])
       .sort((a, b) => a.position - b.position)
       .map((item) => {
-        const product = item.products
+        // Supabase returns joined relations as arrays, even for one-to-one relationships
+        const productData = Array.isArray(item.products) ? item.products[0] : item.products;
+        const product = productData
           ? {
-              id: item.products.external_id,
-              name: item.products.name,
-              brand: item.products.brand,
-              image: item.products.image,
-              price: item.products.price,
-              currency: item.products.currency,
-              buyLink: item.products.buy_link,
+              id: productData.external_id || productData.id,
+              name: productData.name,
+              brand: productData.brand,
+              image: productData.image,
+              price: productData.price,
+              currency: productData.currency,
+              buyLink: productData.buy_link,
             }
           : null;
 
         const variants = (item.product_variants || [])
-          .sort((a, b) => a.position - b.position)
-          .map((variant) =>
-            variant.products
+          .sort((a: any, b: any) => a.position - b.position)
+          .map((variant: any) => {
+            // Supabase returns joined relations as arrays, even for one-to-one relationships
+            const variantProductData = Array.isArray(variant.products) ? variant.products[0] : variant.products;
+            return variantProductData
               ? {
-                  id: variant.products.external_id,
-                  name: variant.products.name,
-                  brand: variant.products.brand,
-                  image: variant.products.image,
-                  price: variant.products.price,
-                  currency: variant.products.currency,
-                  buyLink: variant.products.buy_link,
+                  id: variantProductData.external_id || variantProductData.id,
+                  name: variantProductData.name,
+                  brand: variantProductData.brand,
+                  image: variantProductData.image,
+                  price: variantProductData.price,
+                  currency: variantProductData.currency,
+                  buyLink: variantProductData.buy_link,
                 }
-              : null
-          )
-          .filter((v): v is NonNullable<typeof v> => v !== null);
+              : null;
+          })
+          .filter((v: any): v is NonNullable<typeof v> => v !== null);
 
         return {
           category: item.category,

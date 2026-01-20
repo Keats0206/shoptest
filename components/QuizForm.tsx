@@ -204,34 +204,34 @@ export default function QuizForm() {
       });
     }, 2000); // Change stage every 2 seconds
 
+    // Map to new quiz format (defined outside try block so it's accessible in catch)
+    const quiz: {
+      styles: string[];
+      occasions: string[];
+      bodyType: string;
+      fitPreference?: string;
+      budgetRange: string;
+      avoidances: string[];
+      mustHaves: string[];
+      colorPreferences?: string;
+      favoriteBrands?: string[];
+    } = {
+      styles: answers.styleVibes.length > 0 ? answers.styleVibes : ['classic'],
+      occasions: answers.lifestyleContexts.length > 0 ? answers.lifestyleContexts : ['everyday-casual'],
+      bodyType: answers.bodyType || 'average',
+      fitPreference: answers.fitPreference,
+      budgetRange: answers.budget,
+      avoidances: answers.shoppingPainPoints.filter(p => p !== 'colors-look-wrong'),
+      mustHaves: answers.willingToSpendMoreOn || [],
+      colorPreferences: answers.shoppingPainPoints.includes('colors-look-wrong') ? 'neutral' : 'mixed',
+      favoriteBrands: [], // Can be added later if quiz collects this
+    };
+
     try {
       // Clear saved progress
       if (typeof window !== 'undefined') {
         localStorage.removeItem(QUIZ_STORAGE_KEY);
       }
-
-      // Map to new quiz format
-      const quiz: {
-        styles: string[];
-        occasions: string[];
-        bodyType: string;
-        fitPreference?: string;
-        budgetRange: string;
-        avoidances: string[];
-        mustHaves: string[];
-        colorPreferences?: string;
-        favoriteBrands?: string[];
-      } = {
-        styles: answers.styleVibes.length > 0 ? answers.styleVibes : ['classic'],
-        occasions: answers.lifestyleContexts.length > 0 ? answers.lifestyleContexts : ['everyday-casual'],
-        bodyType: answers.bodyType || 'average',
-        fitPreference: answers.fitPreference,
-        budgetRange: answers.budget,
-        avoidances: answers.shoppingPainPoints.filter(p => p !== 'colors-look-wrong'),
-        mustHaves: answers.willingToSpendMoreOn || [],
-        colorPreferences: answers.shoppingPainPoints.includes('colors-look-wrong') ? 'neutral' : 'mixed',
-        favoriteBrands: [], // Can be added later if quiz collects this
-      };
 
       const payload = {
         quiz,
