@@ -40,6 +40,7 @@ export interface Channel3EnrichedProduct {
 }
 
 import { retryWithBackoff } from './retry';
+import { getEnv, getOptionalEnv } from './env';
 
 export interface SearchFilters {
   gender?: 'male' | 'female' | 'unisex';
@@ -59,12 +60,8 @@ export async function searchProducts(
   priceMin?: number,
   filters?: SearchFilters
 ): Promise<Channel3Product[]> {
-  if (!process.env.CHANNEL3_API_KEY) {
-    throw new Error('CHANNEL3_API_KEY is not set');
-  }
-
-  const apiKey = process.env.CHANNEL3_API_KEY;
-  const baseUrl = process.env.CHANNEL3_API_URL || 'https://api.trychannel3.com';
+  const apiKey = getEnv('CHANNEL3_API_KEY');
+  const baseUrl = getOptionalEnv('CHANNEL3_API_URL', 'https://api.trychannel3.com');
   
   try {
     // Wrap the API call in retry logic
@@ -241,12 +238,8 @@ export async function searchProducts(
 }
 
 export async function enrichProduct(url: string): Promise<Channel3EnrichedProduct | null> {
-  if (!process.env.CHANNEL3_API_KEY) {
-    throw new Error('CHANNEL3_API_KEY is not set');
-  }
-
-  const apiKey = process.env.CHANNEL3_API_KEY;
-  const baseUrl = process.env.CHANNEL3_API_URL || 'https://api.trychannel3.com';
+  const apiKey = getEnv('CHANNEL3_API_KEY');
+  const baseUrl = getOptionalEnv('CHANNEL3_API_URL', 'https://api.trychannel3.com');
   
   try {
     // Wrap the API call in retry logic

@@ -35,9 +35,6 @@ export interface OutfitIdea {
 interface OutfitCardProps {
   outfit: OutfitIdea;
   onProductClick?: (product: Product) => void;
-  onKeepProduct?: (productId: string) => void;
-  keptProducts?: Set<string>;
-  user?: any;
   haulId?: string;
   outfitIndex?: number;
 }
@@ -45,9 +42,6 @@ interface OutfitCardProps {
 export default function OutfitCard({
   outfit,
   onProductClick,
-  onKeepProduct,
-  keptProducts = new Set(),
-  user,
   haulId,
   outfitIndex = 0,
 }: OutfitCardProps & { outfitIndex?: number }) {
@@ -65,12 +59,6 @@ export default function OutfitCard({
     }
   };
 
-  const handleKeepClick = (e: React.MouseEvent, productId: string) => {
-    e.stopPropagation();
-    if (onKeepProduct) {
-      onKeepProduct(productId);
-    }
-  };
 
   // Get price display text
   const getPriceDisplay = () => {
@@ -107,35 +95,13 @@ export default function OutfitCard({
         <div className="grid grid-cols-2 gap-3 mb-4">
           {outfit.items.map((item) => {
             const product = item.product;
-            const isKept = keptProducts.has(product.id);
             
             return (
               <div
                 key={product.id}
-                className={`relative group cursor-pointer transition-all ${
-                  isKept ? 'opacity-60' : ''
-                }`}
+                className="relative group cursor-pointer transition-all"
                 onClick={() => onProductClick && onProductClick(product)}
               >
-                {/* Keep Button */}
-                {user && onKeepProduct && (
-                  <button
-                    onClick={(e) => handleKeepClick(e, product.id)}
-                    className={`absolute top-1 right-1 z-20 w-6 h-6 border-2 flex items-center justify-center transition-all ${
-                      isKept
-                        ? 'border-black bg-black text-white'
-                        : 'border-neutral-300 bg-white hover:border-black'
-                    }`}
-                    type="button"
-                  >
-                    {isKept && (
-                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                )}
-
                 {/* Product Image */}
                 <div className="relative aspect-[3/4] bg-neutral-50 mb-2 overflow-hidden rounded">
                   <Image

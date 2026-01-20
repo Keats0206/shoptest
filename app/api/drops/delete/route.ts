@@ -19,11 +19,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing haulId' }, { status: 400 });
     }
 
+    // In new schema, haulId is the session ID
+    // Delete styling session (cascades to outfits, outfit_items, product_variants)
     const { error } = await supabase
-      .from('drops')
+      .from('styling_sessions')
       .delete()
       .eq('user_id', user.id)
-      .eq('haul_id', haulId);
+      .eq('id', haulId);
 
     if (error) {
       throw error;

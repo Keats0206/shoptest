@@ -1,12 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { retryWithBackoff } from './retry';
-
-if (!process.env.ANTHROPIC_API_KEY) {
-  throw new Error('ANTHROPIC_API_KEY is not set');
-}
+import { getEnv } from './env';
 
 export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: getEnv('ANTHROPIC_API_KEY'),
 });
 
 export interface StyleProfile {

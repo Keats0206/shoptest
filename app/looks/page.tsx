@@ -24,91 +24,59 @@ interface HaulData {
   createdAt: string;
 }
 
-export default function DropsPage() {
+export default function LooksPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [drops, setDrops] = useState<HaulData[]>([]);
+  const [hauls, setHauls] = useState<HaulData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadDrops = async () => {
+    const loadHauls = async () => {
       if (typeof window === 'undefined') return;
       
-      const allHauls: HaulData[] = [];
-      
-      // If user is authenticated, load from database FIRST
-      if (user) {
-        try {
-          const response = await fetch('/api/drops/list');
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Loaded from database:', data.drops?.length || 0, 'drops');
-            const dbDrops: HaulData[] = (data.drops || []).map((drop: any) => ({
-              haulId: drop.haul_id,
-              products: drop.products || [],
-              outfitIdeas: drop.outfitIdeas || drop.outfits,
-              outfits: drop.outfits,
-              queries: drop.queries || [],
-              createdAt: drop.created_at || drop.createdAt,
-            }));
-            allHauls.push(...dbDrops);
-          } else {
-            console.warn('Database query failed:', response.status, response.statusText);
-          }
-        } catch (err) {
-          console.error('Error loading drops from database:', err);
-        }
-      } else {
-        console.log('User not authenticated, loading from localStorage only');
+      // Only load from database if user is authenticated
+      if (!user) {
+        setHauls([]);
+        setLoading(false);
+        return;
       }
       
-      // Also load from localStorage (for anonymous users or items not yet saved to DB)
-      let localStorageCount = 0;
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('haul_')) {
-          try {
-            const stored = localStorage.getItem(key);
-            if (stored) {
-              const data = JSON.parse(stored);
-              const haulId = key.replace('haul_', '');
-              
-              // Skip if already loaded from database (database is source of truth for authenticated users)
-              if (!allHauls.find(h => h.haulId === haulId)) {
-                allHauls.push({
-                  haulId,
-                  products: data.products || [],
-                  outfitIdeas: data.outfitIdeas,
-                  outfits: data.outfits,
-                  queries: data.queries || [],
-                  createdAt: data.createdAt || new Date().toISOString(),
-                });
-                localStorageCount++;
-              }
-            }
-          } catch (err) {
-            console.error(`Error parsing haul ${key}:`, err);
-          }
+      try {
+        // Load hauls (styling sessions) from database
+        const response = await fetch('/api/hauls/list');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Loaded from database:', data.hauls?.length || 0, 'hauls');
+          
+          // Transform hauls to HaulData format for compatibility
+          const dbHauls: HaulData[] = (data.hauls || []).map((haul: any) => ({
+            haulId: haul.id,
+            products: haul.products || [],
+            outfitIdeas: haul.outfits || [],
+            outfits: haul.outfits || [],
+            queries: [],
+            createdAt: haul.createdAt,
+          }));
+          
+          // Sort by date (newest first)
+          dbHauls.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          
+          setHauls(dbHauls);
+        } else {
+          console.warn('Database query failed:', response.status, response.statusText);
+          setHauls([]);
         }
+      } catch (err) {
+        console.error('Error loading hauls from database:', err);
+        setHauls([]);
       }
       
-      if (localStorageCount > 0) {
-        console.log('Loaded from localStorage:', localStorageCount, 'drops');
-        if (user) {
-          console.log('💡 Tip: Click "Save Look" on any look to save it to your database');
-        }
-      }
-      
-      // Sort by date (newest first)
-      allHauls.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      
-      setDrops(allHauls);
       setLoading(false);
     };
     
-    loadDrops();
+    loadHauls();
   }, [user]);
 
   const formatDate = (dateString: string) => {
@@ -120,17 +88,17 @@ export default function DropsPage() {
     });
   };
 
-  const handleViewDrop = (haulId: string) => {
+  const handleViewHaul = (haulId: string) => {
     router.push(`/haul?id=${haulId}`);
   };
 
-  const handleDeleteDrop = async (haulId: string, e: React.MouseEvent) => {
+  const handleDeleteHaul = async (haulId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
     // Delete from database if authenticated
     if (user) {
       try {
-        const response = await fetch(`/api/drops/delete?haulId=${haulId}`, {
+        const response = await fetch(`/api/hauls/${haulId}`, {
           method: 'DELETE',
         });
         if (!response.ok) {
@@ -147,7 +115,7 @@ export default function DropsPage() {
     }
     
     // Update UI
-    setDrops(prev => prev.filter(drop => drop.haulId !== haulId));
+    setHauls(prev => prev.filter(haul => haul.haulId !== haulId));
   };
 
   if (loading) {
@@ -177,11 +145,11 @@ export default function DropsPage() {
             Your personalized styling collections, saved digitally
           </p>
           <p className="text-xs text-neutral-500 uppercase tracking-wide">
-            {drops.length} {drops.length === 1 ? 'look' : 'looks'} saved
+            {hauls.length} {hauls.length === 1 ? 'look' : 'looks'} saved
           </p>
         </div>
 
-        {drops.length === 0 ? (
+        {hauls.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-neutral-400 mb-6 text-sm uppercase tracking-wide">
               No looks yet
@@ -195,15 +163,15 @@ export default function DropsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {drops.map((drop) => (
+            {hauls.map((haul) => (
               <div
-                key={drop.haulId}
-                onClick={() => handleViewDrop(drop.haulId)}
+                key={haul.haulId}
+                onClick={() => handleViewHaul(haul.haulId)}
                 className="relative group cursor-pointer border-2 border-neutral-200 hover:border-black transition-all"
               >
                 {/* Delete button */}
                 <button
-                  onClick={(e) => handleDeleteDrop(drop.haulId, e)}
+                  onClick={(e) => handleDeleteHaul(haul.haulId, e)}
                   className="absolute top-2 right-2 z-10 w-8 h-8 bg-white border-2 border-neutral-300 hover:border-black flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
                 >
                   <svg
@@ -221,38 +189,55 @@ export default function DropsPage() {
                   </svg>
                 </button>
 
-                {/* Preview Grid */}
+                {/* Preview Grid - Show one product from each outfit */}
                 <div className="grid grid-cols-3 gap-1 p-2 bg-neutral-50">
-                  {drop.products.slice(0, 6).map((product, idx) => (
-                    <div
-                      key={product.id || idx}
-                      className="relative aspect-square bg-white overflow-hidden"
-                    >
-                      <Image
-                        src={product.image || '/placeholder.png'}
-                        alt={product.name}
-                        fill
-                        className="object-contain p-1"
-                        sizes="(max-width: 768px) 33vw, 20vw"
-                      />
-                    </div>
-                  ))}
-                  {drop.products.length > 6 && (
-                    <div className="relative aspect-square bg-neutral-200 flex items-center justify-center">
-                      <span className="text-xs text-neutral-500 font-medium">
-                        +{drop.products.length - 6}
-                      </span>
-                    </div>
-                  )}
+                  {(() => {
+                    const outfits = haul.outfitIdeas || haul.outfits || [];
+                    const displayProducts = outfits
+                      .map((outfit: any) => {
+                        // Get first main item or first item with image
+                        const mainItem = outfit.items?.find((item: any) => item.isMain && item.product?.image);
+                        const firstItem = outfit.items?.find((item: any) => item.product?.image);
+                        return (mainItem || firstItem)?.product;
+                      })
+                      .filter((p: any) => p !== null)
+                      .slice(0, 6);
+                    
+                    return (
+                      <>
+                        {displayProducts.map((product: any, idx: number) => (
+                          <div
+                            key={product.id || idx}
+                            className="relative aspect-square bg-white overflow-hidden"
+                          >
+                            <Image
+                              src={product.image || '/placeholder.png'}
+                              alt={product.name}
+                              fill
+                              className="object-contain p-1"
+                              sizes="(max-width: 768px) 33vw, 20vw"
+                            />
+                          </div>
+                        ))}
+                        {outfits.length > 6 && (
+                          <div className="relative aspect-square bg-neutral-200 flex items-center justify-center">
+                            <span className="text-xs text-neutral-500 font-medium">
+                              +{outfits.length - 6}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Look Info */}
                 <div className="p-4">
                   <p className="text-xs text-neutral-500 uppercase tracking-wide mb-1">
-                    {formatDate(drop.createdAt)}
+                    {formatDate(haul.createdAt)}
                   </p>
                   <p className="text-sm font-medium uppercase tracking-tight">
-                    {drop.products.length} pieces
+                    {haul.outfitIdeas?.length || haul.outfits?.length || 0} {haul.outfitIdeas?.length === 1 ? 'outfit' : 'outfits'}
                   </p>
                 </div>
               </div>

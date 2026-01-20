@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { randomBytes } from 'crypto';
+import { saveOutfitsToDatabase } from '@/lib/supabase/outfits';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,40 +23,37 @@ export async function POST(request: NextRequest) {
     const migratedDrops = [];
 
     for (const haul of hauls) {
-      const { haulId, products, queries, profile } = haul;
+      const { haulId, products, outfitIdeas, outfits, queries, profile, quiz } = haul;
 
-      if (!haulId || !products || !Array.isArray(products)) {
-        continue; // Skip invalid hauls
-      }
+      // Prefer outfitIdeas over outfits (new format)
+      const outfitsToSave = outfitIdeas || outfits;
 
-      const shareToken = randomBytes(16).toString('hex');
-
-      // Try to insert, or update if exists
-      const { data, error } = await supabase
-        .from('drops')
-        .upsert(
-          {
-            user_id: user.id,
-            haul_id: haulId,
-            products,
-            queries: queries || [],
-            profile: profile || null,
-            is_anonymous: false,
-            share_token: shareToken,
-          },
-          {
-            onConflict: 'user_id,haul_id',
-          }
-        )
-        .select()
-        .single();
-
-      if (error) {
-        console.error(`Error migrating haul ${haulId}:`, error);
+      // Skip if no valid outfit data
+      if (!outfitsToSave || !Array.isArray(outfitsToSave) || outfitsToSave.length === 0) {
+        console.warn(`Skipping haul ${haulId}: No outfitIdeas or outfits found`);
         continue;
       }
 
-      migratedDrops.push(data);
+      try {
+        // Use the new schema save function
+        const quizData = profile || quiz || null;
+        const result = await saveOutfitsToDatabase(
+          supabase,
+          user.id,
+          outfitsToSave,
+          quizData
+        );
+
+        migratedDrops.push({
+          id: result.sessionId,
+          haul_id: haulId,
+          sessionId: result.sessionId,
+          outfitIds: result.outfitIds,
+        });
+      } catch (error) {
+        console.error(`Error migrating haul ${haulId}:`, error);
+        continue;
+      }
     }
 
     return NextResponse.json({

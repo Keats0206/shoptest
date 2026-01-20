@@ -40,9 +40,9 @@ export default function Navigation() {
             <div className="flex items-center gap-4 md:gap-6">
               {user && (
                 <Link
-                  href="/drops"
+                  href="/looks"
                   className={`text-xs md:text-sm font-medium transition-colors py-2 px-1 ${
-                    pathname === '/drops'
+                    pathname === '/looks'
                       ? 'text-neutral-900'
                       : 'text-neutral-600 hover:text-neutral-900'
                   }`}

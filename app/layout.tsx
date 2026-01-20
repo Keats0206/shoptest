@@ -7,6 +7,10 @@ import FeedbackButton from "@/components/FeedbackButton";
 import { AuthProvider } from "@/components/AuthProvider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { validateEnv } from "@/lib/env";
+
+// Validate environment variables at startup
+validateEnv();
 
 const averiaSerif = Averia_Serif_Libre({
   variable: "--font-averia-serif",

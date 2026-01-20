@@ -245,6 +245,15 @@ export default function QuizForm() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Handle rate limit errors with upgrade messaging
+        if (response.status === 429 && errorData.rateLimitExceeded) {
+          const error = new Error(errorData.error || 'Rate limit exceeded');
+          (error as any).upgradeMessage = errorData.upgradeMessage;
+          (error as any).isRateLimit = true;
+          throw error;
+        }
+        
         throw new Error(errorData.error || 'Failed to generate haul');
       }
 
@@ -278,8 +287,8 @@ export default function QuizForm() {
         painPointsCount: answers.shoppingPainPoints.length,
       });
       
-      // Track drop_completed event
-      track('drop_completed', {
+      // Track haul_completed event
+      track('haul_completed', {
         haulId,
         productCount: data.products?.length || 0,
         outfitCount: data.outfits?.length || 0,
@@ -304,7 +313,23 @@ export default function QuizForm() {
         stageIntervalRef.current = null;
       }
       
-      alert(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+      // Handle rate limit errors with upgrade option
+      if (error instanceof Error && (error as any).isRateLimit) {
+        const upgradeMessage = (error as any).upgradeMessage || 'Sign in to get unlimited looks!';
+        const userWantsUpgrade = confirm(
+          `${error.message}\n\n${upgradeMessage}\n\nWould you like to sign in now?`
+        );
+        
+        if (userWantsUpgrade) {
+          // Store the quiz answers to retry after sign-in
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pending_quiz_retry', JSON.stringify({ answers, quiz }));
+          }
+          router.push('/?signin=true');
+        }
+      } else {
+        alert(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+      }
     }
   };
   

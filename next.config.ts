@@ -6,14 +6,21 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: 'api.trychannel3.com',
       },
+      // Allow product images from various retailer CDNs
+      // Channel3 returns product images from many different retailers
+      // We allow HTTPS images from any domain for product images
       {
-        protocol: 'http',
+        protocol: 'https',
         hostname: '**',
       },
     ],
-    unoptimized: false, // Set to true if you want to disable optimization for MVP
+    // Additional security: only allow HTTPS images
+    dangerouslyAllowSVG: false,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    unoptimized: false,
   },
 };
 

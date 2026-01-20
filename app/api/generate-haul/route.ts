@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateOutfitStructure, QuizData } from '@/lib/anthropic';
 import { searchProducts } from '@/lib/channel3';
+import { createClient } from '@/lib/supabase/server';
+import { saveOutfitsToDatabase } from '@/lib/supabase/outfits';
 
 export const runtime = 'nodejs';
 
 // Simple in-memory rate limiting (for MVP - use Redis/KV in production)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_MAX = 10; // Max 10 hauls per hour per IP
-const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
+const RATE_LIMIT_MAX_ANONYMOUS = 1; // Max 1 haul per day for anonymous users
+const RATE_LIMIT_MAX_AUTHENTICATED = 100; // Higher limit for authenticated users (effectively unlimited)
+const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 function getClientIP(request: NextRequest): string {
   // Check various headers for IP (Vercel uses x-forwarded-for)
@@ -22,9 +25,15 @@ function getClientIP(request: NextRequest): string {
   return 'unknown';
 }
 
-function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetAt: number } {
+function checkRateLimit(ip: string, isAuthenticated: boolean): { allowed: boolean; remaining: number; resetAt: number; limit: number } {
   const now = Date.now();
   const record = rateLimitMap.get(ip);
+  const limit = isAuthenticated ? RATE_LIMIT_MAX_AUTHENTICATED : RATE_LIMIT_MAX_ANONYMOUS;
+
+  // Authenticated users get much higher limits (effectively unlimited)
+  if (isAuthenticated) {
+    return { allowed: true, remaining: limit, resetAt: now + RATE_LIMIT_WINDOW, limit };
+  }
 
   // Clean up old entries periodically (every 100 requests, rough approximation)
   if (Math.random() < 0.01) {
@@ -38,17 +47,17 @@ function checkRateLimit(ip: string): { allowed: boolean; remaining: number; rese
   if (!record || record.resetTime < now) {
     // New or expired window - reset
     rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return { allowed: true, remaining: RATE_LIMIT_MAX - 1, resetAt: now + RATE_LIMIT_WINDOW };
+    return { allowed: true, remaining: limit - 1, resetAt: now + RATE_LIMIT_WINDOW, limit };
   }
 
-  if (record.count >= RATE_LIMIT_MAX) {
-    return { allowed: false, remaining: 0, resetAt: record.resetTime };
+  if (record.count >= limit) {
+    return { allowed: false, remaining: 0, resetAt: record.resetTime, limit };
   }
 
   // Increment count
   record.count++;
   rateLimitMap.set(ip, record);
-  return { allowed: true, remaining: RATE_LIMIT_MAX - record.count, resetAt: record.resetTime };
+  return { allowed: true, remaining: limit - record.count, resetAt: record.resetTime, limit };
 }
 
 // Helper function to get budget price range
@@ -378,20 +387,41 @@ function validateProductMatch(
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting check
+    // Check if user is authenticated
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const isAuthenticated = !!user;
+    
+    // Rate limiting check (only for anonymous users)
     const clientIP = getClientIP(request);
-    const rateLimit = checkRateLimit(clientIP);
+    const rateLimit = checkRateLimit(clientIP, isAuthenticated);
     
     if (!rateLimit.allowed) {
+      const resetInHours = Math.ceil((rateLimit.resetAt - Date.now()) / (60 * 60 * 1000));
       const resetInMinutes = Math.ceil((rateLimit.resetAt - Date.now()) / (60 * 1000));
+      
+      // Format reset time nicely
+      let resetMessage = '';
+      if (resetInHours >= 24) {
+        const days = Math.floor(resetInHours / 24);
+        resetMessage = `${days} day${days !== 1 ? 's' : ''}`;
+      } else if (resetInHours >= 1) {
+        resetMessage = `${resetInHours} hour${resetInHours !== 1 ? 's' : ''}`;
+      } else {
+        resetMessage = `${resetInMinutes} minute${resetInMinutes !== 1 ? 's' : ''}`;
+      }
+      
       return NextResponse.json(
         { 
-          error: `Too many requests. Please wait ${resetInMinutes} minute${resetInMinutes !== 1 ? 's' : ''} before creating another look. This helps us keep the service free for everyone.`
+          error: `You've reached your daily limit of ${rateLimit.limit} look${rateLimit.limit !== 1 ? 's' : ''}. Please wait ${resetMessage} before creating another look.`,
+          upgradeMessage: 'Sign in to get unlimited looks and save your style profile!',
+          rateLimitExceeded: true,
+          resetAt: rateLimit.resetAt,
         },
         { 
           status: 429,
           headers: {
-            'X-RateLimit-Limit': RATE_LIMIT_MAX.toString(),
+            'X-RateLimit-Limit': rateLimit.limit.toString(),
             'X-RateLimit-Remaining': rateLimit.remaining.toString(),
             'X-RateLimit-Reset': rateLimit.resetAt.toString(),
           }
@@ -444,28 +474,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate required fields
-    if (!quiz.styles || quiz.styles.length === 0) {
+    // Validate required fields with enhanced checks
+    if (!quiz.styles || !Array.isArray(quiz.styles) || quiz.styles.length === 0) {
       return NextResponse.json(
-        { error: 'Missing required field: styles' },
+        { error: 'Missing required field: styles (must be a non-empty array)' },
         { status: 400 }
       );
     }
-    if (!quiz.occasions || quiz.occasions.length === 0) {
+    
+    // Validate styles are strings and not too long
+    if (!quiz.styles.every((style: unknown) => typeof style === 'string' && style.length <= 100)) {
       return NextResponse.json(
-        { error: 'Missing required field: occasions' },
+        { error: 'Invalid styles: each style must be a string with max 100 characters' },
         { status: 400 }
       );
     }
-    if (!quiz.bodyType) {
+    
+    if (!quiz.occasions || !Array.isArray(quiz.occasions) || quiz.occasions.length === 0) {
       return NextResponse.json(
-        { error: 'Missing required field: bodyType' },
+        { error: 'Missing required field: occasions (must be a non-empty array)' },
         { status: 400 }
       );
     }
-    if (!quiz.budgetRange) {
+    
+    // Validate occasions are strings
+    if (!quiz.occasions.every((occasion: unknown) => typeof occasion === 'string' && occasion.length <= 100)) {
       return NextResponse.json(
-        { error: 'Missing required field: budgetRange' },
+        { error: 'Invalid occasions: each occasion must be a string with max 100 characters' },
+        { status: 400 }
+      );
+    }
+    
+    if (!quiz.bodyType || typeof quiz.bodyType !== 'string' || quiz.bodyType.length > 50) {
+      return NextResponse.json(
+        { error: 'Missing or invalid required field: bodyType (must be a string with max 50 characters)' },
+        { status: 400 }
+      );
+    }
+    
+    if (!quiz.budgetRange || typeof quiz.budgetRange !== 'string' || !/^\$+$/.test(quiz.budgetRange)) {
+      return NextResponse.json(
+        { error: 'Missing or invalid required field: budgetRange (must be a string like $, $$, $$$, etc.)' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate optional fields if present
+    if (quiz.avoidances && (!Array.isArray(quiz.avoidances) || !quiz.avoidances.every((a: unknown) => typeof a === 'string'))) {
+      return NextResponse.json(
+        { error: 'Invalid avoidances: must be an array of strings' },
+        { status: 400 }
+      );
+    }
+    
+    if (quiz.mustHaves && (!Array.isArray(quiz.mustHaves) || !quiz.mustHaves.every((m: unknown) => typeof m === 'string'))) {
+      return NextResponse.json(
+        { error: 'Invalid mustHaves: must be an array of strings' },
+        { status: 400 }
+      );
+    }
+    
+    if (quiz.favoriteBrands && !Array.isArray(quiz.favoriteBrands) && typeof quiz.favoriteBrands !== 'undefined') {
+      return NextResponse.json(
+        { error: 'Invalid favoriteBrands: must be an array of strings' },
         { status: 400 }
       );
     }
@@ -665,8 +736,22 @@ export async function POST(request: NextRequest) {
     // Create a unique haul ID
     const haulId = `haul_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Auto-save to database if user is authenticated
+    let sessionId: string | null = null;
+    if (user) {
+      try {
+        const result = await saveOutfitsToDatabase(supabase, user.id, outfitIdeas, quiz);
+        sessionId = result.sessionId;
+        console.log(`Auto-saved ${outfitIdeas.length} outfits to database for user ${user.id}`);
+      } catch (saveError) {
+        console.error('Error auto-saving outfits to database:', saveError);
+        // Don't fail the request if save fails - user still gets their results
+      }
+    }
+
     return NextResponse.json({
       haulId,
+      sessionId, // Include session ID if saved
       outfitIdeas, // New structure with blurbs and pricing
       outfits: outfitsWithProducts, // Backward compatibility
       products: allProducts, // Backward compatibility

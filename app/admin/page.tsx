@@ -12,6 +12,7 @@ interface ApiResponse {
 export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
+  const [localStorageCleared, setLocalStorageCleared] = useState(false);
 
   // Generate Haul form state - new quiz format
   const [generateHaulBody, setGenerateHaulBody] = useState(`{
@@ -65,9 +66,93 @@ export default function AdminPage() {
     }
   };
 
+  const clearLocalStorage = () => {
+    if (typeof window === 'undefined') return;
+    
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('haul_') || key.startsWith('quiz_') || key.startsWith('feedback_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    setLocalStorageCleared(true);
+    setTimeout(() => {
+      setLocalStorageCleared(false);
+      window.location.reload();
+    }, 1500);
+  };
+
+  const shuffleQuiz = () => {
+    // Valid options from QuizForm
+    const styles = ["minimalist", "streetwear", "boho", "edgy", "classic", "romantic", "athleisure", "relaxed"];
+    const occasions = ["work-office", "work-casual", "dates-going-out", "everyday-casual", "athletic-active", "special-occasions"];
+    const bodyTypes = ["athletic", "curvy", "petite", "tall", "straight", "plus", "hourglass"];
+    const fitPreferences = ["fitted", "relaxed", "oversized", "tailored"];
+    const budgetRanges = ["$", "$$", "$$$", "$$$$", "$$$$$"];
+    const colorPreferences = ["neutral", "bold", "pastel", "mixed"];
+    const genders = ["female", "male", "unisex"];
+    const mustHavesOptions = ["outerwear", "shoes", "bags", "dress", "blazer"];
+    const popularBrands = [
+      ["Everlane", "Cuyana"],
+      ["Reformation", "Free People"],
+      ["Theory", "Aritzia", "COS"],
+      ["Nike", "Adidas"],
+      ["Madewell", "J.Crew"],
+      ["Sezane", "& Other Stories"],
+    ];
+
+    // Helper to randomly select items
+    const randomSelect = <T,>(arr: T[], min: number = 1, max: number = arr.length): T[] => {
+      const count = Math.floor(Math.random() * (max - min + 1)) + min;
+      const shuffled = [...arr].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, count);
+    };
+
+    const randomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+    // Generate random quiz
+    const shuffledQuiz: any = {
+      styles: randomSelect(styles, 1, 3),
+      occasions: randomSelect(occasions, 1, 3),
+      bodyType: randomItem(bodyTypes),
+      budgetRange: randomItem(budgetRanges),
+      avoidances: Math.random() > 0.7 ? randomSelect(["oversized", "dress", "tight"], 0, 2) : [],
+      mustHaves: Math.random() > 0.5 ? randomSelect(mustHavesOptions, 1, 3) : [],
+      gender: randomItem(genders),
+    };
+
+    // Add optional fields with probability
+    if (Math.random() > 0.3) {
+      shuffledQuiz.fitPreference = randomItem(fitPreferences);
+    }
+    if (Math.random() > 0.3) {
+      shuffledQuiz.colorPreferences = randomItem(colorPreferences);
+    }
+    if (Math.random() > 0.4) {
+      shuffledQuiz.favoriteBrands = randomItem(popularBrands);
+    }
+
+    const quizJson = JSON.stringify({ quiz: shuffledQuiz }, null, 2);
+    setGenerateHaulBody(quizJson);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <h1 className="text-4xl font-bold mb-8">API Admin Panel</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-4xl font-bold">API Admin Panel</h1>
+        <button
+          onClick={clearLocalStorage}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm font-medium"
+        >
+          {localStorageCleared ? '✅ Cleared!' : 'Clear localStorage'}
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Request Section */}
@@ -79,7 +164,13 @@ export default function AdminPage() {
               <label className="block text-sm font-medium">
                 Request Body (JSON)
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={shuffleQuiz}
+                  className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-medium"
+                >
+                  🎲 Shuffle
+                </button>
                 <button
                   onClick={() => setGenerateHaulBody(`{
   "quiz": {
@@ -97,7 +188,7 @@ export default function AdminPage() {
 }`)}
                   className="text-xs px-2 py-1 border border-foreground/20 rounded hover:bg-foreground/5"
                 >
-                  Load New Format
+                  Original
                 </button>
                 <button
                   onClick={() => setGenerateHaulBody(`{
@@ -111,7 +202,7 @@ export default function AdminPage() {
 }`)}
                   className="text-xs px-2 py-1 border border-foreground/20 rounded hover:bg-foreground/5"
                 >
-                  Load Legacy Format
+                  Legacy
                 </button>
               </div>
             </div>

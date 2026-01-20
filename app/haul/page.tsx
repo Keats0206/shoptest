@@ -2,11 +2,8 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import Image from 'next/image';
 import { track } from '@vercel/analytics';
 import ProductDetailModal, { type Product } from '@/components/ProductDetailModal';
-import { useAuth } from '@/components/AuthProvider';
-import AuthModal from '@/components/AuthModal';
 import DropFeedback from '@/components/DropFeedback';
 import OutfitCard, { type OutfitIdea, type OutfitItem } from '@/components/OutfitCard';
 
@@ -53,19 +50,12 @@ interface HaulData {
 function HaulContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [outfitIdeas, setOutfitIdeas] = useState<OutfitIdea[]>([]);
-  const [keptProducts, setKeptProducts] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [originalQuiz, setOriginalQuiz] = useState<any>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalTitle, setAuthModalTitle] = useState('');
-  const [authModalMessage, setAuthModalMessage] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [showFeedback, setShowFeedback] = useState(true);
   const haulId = searchParams.get('id');
 
@@ -76,129 +66,153 @@ function HaulContent() {
       return;
     }
 
-    // Load haul data from sessionStorage or localStorage
-    if (typeof window !== 'undefined') {
-      let storedHaul = sessionStorage.getItem(`haul_${haulId}`);
-      
-      // Fallback to localStorage if not in sessionStorage
-      if (!storedHaul) {
-        storedHaul = localStorage.getItem(`haul_${haulId}`);
-      }
-      
-      if (storedHaul) {
+    const loadHaul = async () => {
+      // Check if haulId is a UUID (database session ID) or localStorage key
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(haulId);
+
+      // If it's a UUID, try loading from database first
+      if (isUUID) {
         try {
-          const data: HaulData = JSON.parse(storedHaul);
-          const loadedProducts = data.products || [];
-          setProducts(loadedProducts);
-          
-          // Prioritize new outfitIdeas structure, fallback to legacy outfits
-          if (data.outfitIdeas && data.outfitIdeas.length > 0) {
-            setOutfitIdeas(data.outfitIdeas);
-          } else if (data.outfits && data.outfits.length > 0) {
-            // Convert legacy format to new format
-            const converted: OutfitIdea[] = data.outfits.map(outfit => {
-              const items: OutfitItem[] = outfit.items.map(item => ({
+          const response = await fetch(`/api/hauls/${haulId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.haul) {
+              const haul = data.haul;
+              const loadedProducts = haul.products || [];
+              setProducts(loadedProducts);
+              
+              // Set outfit ideas from the haul
+              if (haul.outfits && haul.outfits.length > 0) {
+                setOutfitIdeas(haul.outfits);
+              } else {
+                setOutfitIdeas([]);
+              }
+              
+              setOriginalQuiz(haul.quizData || null);
+              setLoading(false);
+              
+              // Check if feedback already submitted
+              if (typeof window !== 'undefined') {
+                const feedbackSubmitted = localStorage.getItem(`feedback_${haulId}`);
+                setShowFeedback(feedbackSubmitted !== 'true');
+              }
+              
+              // Track haul view
+              track('haul_view', {
+                haulId,
+                productCount: loadedProducts.length,
+                outfitCount: haul.outfits?.length || 0,
+              });
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Error loading haul from database:', err);
+          // Fall through to localStorage
+        }
+      }
+
+      // Load haul data from sessionStorage or localStorage (for old format or anonymous)
+      if (typeof window !== 'undefined') {
+        let storedHaul = sessionStorage.getItem(`haul_${haulId}`);
+        
+        // Fallback to localStorage if not in sessionStorage
+        if (!storedHaul) {
+          storedHaul = localStorage.getItem(`haul_${haulId}`);
+        }
+        
+        if (storedHaul) {
+          try {
+            const data: HaulData = JSON.parse(storedHaul);
+            const loadedProducts = data.products || [];
+            setProducts(loadedProducts);
+            
+            // Prioritize new outfitIdeas structure, fallback to legacy outfits
+            if (data.outfitIdeas && data.outfitIdeas.length > 0) {
+              setOutfitIdeas(data.outfitIdeas);
+            } else if (data.outfits && data.outfits.length > 0) {
+              // Convert legacy format to new format
+              const converted: OutfitIdea[] = data.outfits.map(outfit => {
+                const items: OutfitItem[] = outfit.items.map(item => ({
+                  category: item.category,
+                  product: item.product,
+                  variants: item.variants || item.alternatives || [],
+                  reasoning: item.reasoning,
+                  isMain: item.category !== 'shoes' && item.category !== 'bag' && item.category !== 'jewelry' && item.category !== 'accessories',
+                }));
+                
+                const totalPrice = items.reduce((sum, item) => sum + (item.product.price || 0), 0);
+                const allPrices = items.flatMap(item => [
+                  item.product.price || 0,
+                  ...item.variants.map(v => v.price || 0)
+                ]).filter(p => p > 0);
+                
+                const priceRange = allPrices.length > 0 ? {
+                  min: Math.min(...allPrices),
+                  max: Math.max(...allPrices),
+                } : undefined;
+                
+                return {
+                  name: outfit.name,
+                  occasion: outfit.occasion,
+                  stylistBlurb: outfit.stylistBlurb || `This ${outfit.name} look works together through color harmony and complementary silhouettes.`,
+                  items,
+                  totalPrice,
+                  priceRange,
+                };
+              });
+              setOutfitIdeas(converted);
+            } else {
+              setOutfitIdeas([]);
+            }
+            
+            setOriginalQuiz(data.quiz || data.profile || null);
+            setLoading(false);
+            
+            // Check if feedback already submitted
+            if (typeof window !== 'undefined') {
+              const feedbackSubmitted = localStorage.getItem(`feedback_${haulId}`);
+              setShowFeedback(feedbackSubmitted !== 'true');
+            }
+            
+            // Track haul view (use loaded data, not state)
+            const loadedOutfitIdeas = data.outfitIdeas || (data.outfits ? data.outfits.map(outfit => {
+              const items = outfit.items.map(item => ({
                 category: item.category,
                 product: item.product,
                 variants: item.variants || item.alternatives || [],
                 reasoning: item.reasoning,
-                isMain: item.category !== 'shoes' && item.category !== 'bag' && item.category !== 'jewelry' && item.category !== 'accessories',
+                isMain: true,
               }));
-              
               const totalPrice = items.reduce((sum, item) => sum + (item.product.price || 0), 0);
-              const allPrices = items.flatMap(item => [
-                item.product.price || 0,
-                ...item.variants.map(v => v.price || 0)
-              ]).filter(p => p > 0);
-              
-              const priceRange = allPrices.length > 0 ? {
-                min: Math.min(...allPrices),
-                max: Math.max(...allPrices),
-              } : undefined;
-              
               return {
                 name: outfit.name,
                 occasion: outfit.occasion,
-                stylistBlurb: outfit.stylistBlurb || `This ${outfit.name} look works together through color harmony and complementary silhouettes.`,
+                stylistBlurb: (outfit as any).stylistBlurb || '',
                 items,
                 totalPrice,
-                priceRange,
               };
+            }) : []);
+            
+            track('haul_view', {
+              haulId,
+              productCount: loadedProducts.length,
+              outfitCount: loadedOutfitIdeas.length,
             });
-            setOutfitIdeas(converted);
-          } else {
-            setOutfitIdeas([]);
+          } catch (err) {
+            console.error('Error parsing haul data:', err);
+            setError('Failed to load haul. Please start over.');
+            setLoading(false);
           }
-          
-          setOriginalQuiz(data.quiz || data.profile || null);
-          setLoading(false);
-          
-          // Check if feedback already submitted
-          if (typeof window !== 'undefined') {
-            const feedbackSubmitted = localStorage.getItem(`feedback_${haulId}`);
-            setShowFeedback(feedbackSubmitted !== 'true');
-          }
-          
-          // Track haul view (use loaded data, not state)
-          const loadedOutfitIdeas = data.outfitIdeas || (data.outfits ? data.outfits.map(outfit => {
-            const items = outfit.items.map(item => ({
-              category: item.category,
-              product: item.product,
-              variants: item.variants || item.alternatives || [],
-              reasoning: item.reasoning,
-              isMain: true,
-            }));
-            const totalPrice = items.reduce((sum, item) => sum + (item.product.price || 0), 0);
-            return {
-              name: outfit.name,
-              occasion: outfit.occasion,
-              stylistBlurb: (outfit as any).stylistBlurb || '',
-              items,
-              totalPrice,
-            };
-          }) : []);
-          
-          track('haul_view', {
-            haulId,
-            productCount: loadedProducts.length,
-            outfitCount: loadedOutfitIdeas.length,
-          });
-        } catch (err) {
-          console.error('Error parsing haul data:', err);
-          setError('Failed to load drop. Please start over.');
+        } else {
+          setError('Haul not found. Please start over.');
           setLoading(false);
         }
-      } else {
-        setError('Drop not found. Please start over.');
-        setLoading(false);
       }
-    }
+    };
+
+    loadHaul();
   }, [haulId]);
-
-
-  const handleKeepProduct = (productId: string) => {
-    if (!user) {
-      setAuthModalTitle('Sign in to save items');
-      setAuthModalMessage('Sign in to keep and organize your favorite pieces');
-      setShowAuthModal(true);
-      // Track auth trigger
-      track('auth_triggered', {
-        trigger: 'keep_item',
-        haulId,
-      });
-      return;
-    }
-
-    setKeptProducts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(productId)) {
-        newSet.delete(productId);
-      } else {
-        newSet.add(productId);
-      }
-      return newSet;
-    });
-  };
 
 
   const handleProductClick = (product: Product) => {
@@ -216,101 +230,6 @@ function HaulContent() {
       });
       window.open(selectedProduct.buyLink, '_blank', 'noopener,noreferrer');
     }
-  };
-
-  const handleSaveDrop = async () => {
-    if (!user) {
-      setAuthModalTitle('Sign in to save this drop');
-      setAuthModalMessage('Sign in to save and access your drops anytime');
-      setShowAuthModal(true);
-      // Track auth trigger
-      track('auth_triggered', {
-        trigger: 'save_drop',
-        haulId,
-      });
-      return;
-    }
-
-    if (!haulId || !originalQuiz) {
-      setError('Unable to save: missing drop data');
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/drops/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          haulId,
-          products,
-          outfitIdeas: outfitIdeas.length > 0 ? outfitIdeas : undefined,
-          outfits: outfitIdeas.length > 0 ? outfitIdeas.map(o => ({
-            name: o.name,
-            occasion: o.occasion,
-            items: o.items.map(item => ({
-              outfitName: o.name,
-              outfitOccasion: o.occasion,
-              category: item.category,
-              reasoning: item.reasoning,
-              query: '',
-              product: item.product,
-              variants: item.variants,
-            })),
-          })) : undefined, // Backward compatibility
-          quiz: originalQuiz,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save drop');
-      }
-
-      setSaved(true);
-      track('drop_saved', { haulId });
-      
-      // Migrate localStorage hauls if this is first save
-      if (typeof window !== 'undefined') {
-        const allHauls: any[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key?.startsWith('haul_')) {
-            try {
-              const haulData = JSON.parse(localStorage.getItem(key) || '{}');
-              allHauls.push({
-                haulId: key.replace('haul_', ''),
-                ...haulData,
-              });
-            } catch (e) {
-              // Skip invalid entries
-            }
-          }
-        }
-
-        if (allHauls.length > 0) {
-          // Migrate all hauls
-          fetch('/api/drops/migrate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hauls: allHauls }),
-          }).catch(console.error);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving drop:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save drop');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleNewDrop = () => {
-    // Always allow new drops - styling consultation is available to everyone
-    // Auth is optional for saving, but not required for creating new drops
-    router.push('/quiz');
   };
 
   const currentDate = new Date().toLocaleDateString('en-US', {
@@ -356,34 +275,13 @@ function HaulContent() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8 md:mb-12">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between md:gap-4 mb-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-medium mb-2 uppercase tracking-tight">
-                Your Stylist's Picks
-              </h1>
-              <p className="text-xs text-neutral-500 uppercase tracking-wide">
-                {outfitIdeas.length} complete looks curated for {currentDate}
-              </p>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 items-center">
-            <button
-              onClick={handleNewDrop}
-              className="px-6 py-2 border-2 border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
-            >
-              Create Another Look
-            </button>
-            {user && (
-              <button
-                onClick={handleSaveDrop}
-                disabled={saving || saved}
-                className="px-6 py-2 border-2 border-neutral-300 hover:border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saved ? '✓ Saved' : saving ? 'Saving...' : 'Save Look'}
-              </button>
-            )}
+          <div>
+            <h1 className="text-3xl md:text-4xl font-medium mb-2 uppercase tracking-tight">
+              Your Stylist's Picks
+            </h1>
+            <p className="text-xs text-neutral-500 uppercase tracking-wide">
+              {outfitIdeas.length} complete looks curated for {currentDate}
+            </p>
           </div>
         </div>
 
@@ -396,24 +294,15 @@ function HaulContent() {
                 outfit={outfit}
                 outfitIndex={outfitIndex}
                 onProductClick={handleProductClick}
-                onKeepProduct={handleKeepProduct}
-                keptProducts={keptProducts}
-                user={user}
                 haulId={haulId || undefined}
               />
             ))}
           </div>
         ) : (
           <div className="text-center py-12">
-            <p className="text-sm text-neutral-600 mb-4">
+            <p className="text-sm text-neutral-600">
               No outfit ideas found. Please try creating a new look.
             </p>
-            <button
-              onClick={handleNewDrop}
-              className="px-6 py-3 border-2 border-black hover:bg-black hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
-            >
-              Create New Look
-            </button>
           </div>
         )}
 
@@ -434,38 +323,6 @@ function HaulContent() {
         isOpen={!!selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onShop={handleShopClick}
-        user={user}
-        onTrackPrice={() => {
-          if (!user) {
-            setAuthModalTitle('Sign in to track prices');
-            setAuthModalMessage('Sign in to get notified when items go on sale');
-            setShowAuthModal(true);
-            // Track auth trigger
-            track('auth_triggered', {
-              trigger: 'track_price',
-              haulId,
-            });
-          }
-        }}
-      />
-
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onSuccess={() => {
-          setShowAuthModal(false);
-          // Retry the action that triggered auth
-        }}
-        title={authModalTitle}
-        message={authModalMessage}
-        trigger={authModalTitle.toLowerCase().includes('save') ? 'save_drop' 
-          : authModalTitle.toLowerCase().includes('refine') ? 'refine'
-          : authModalTitle.toLowerCase().includes('keep') ? 'keep_item'
-          : authModalTitle.toLowerCase().includes('create') ? 'new_drop'
-          : authModalTitle.toLowerCase().includes('track') ? 'track_price'
-          : 'haul_page'}
-        haulId={haulId || undefined}
       />
     </div>
   );

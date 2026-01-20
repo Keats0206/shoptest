@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { loadHaulsFromDatabase } from '@/lib/supabase/hauls';
 
 export async function GET() {
   try {
@@ -12,17 +13,26 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase
-      .from('drops')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    // Load hauls (styling sessions) using the new schema
+    const hauls = await loadHaulsFromDatabase(supabase, user.id);
 
-    if (error) {
-      throw error;
-    }
+    // Transform to old format for backward compatibility
+    const drops = hauls.map(haul => ({
+      id: haul.id,
+      haul_id: haul.haulId || haul.id,
+      user_id: user.id,
+      products: haul.products || [],
+      outfitIdeas: haul.outfitIdeas || haul.outfits || [],
+      outfits: haul.outfits || [],
+      queries: [],
+      profile: haul.quizData || null,
+      is_anonymous: false,
+      share_token: null, // Share tokens are on individual outfits now
+      created_at: haul.createdAt,
+      updated_at: haul.createdAt,
+    }));
 
-    return NextResponse.json({ drops: data || [] });
+    return NextResponse.json({ drops });
   } catch (error) {
     console.error('Error fetching drops:', error);
     return NextResponse.json(
