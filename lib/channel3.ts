@@ -81,14 +81,14 @@ export async function searchProducts(
       apiFilters.gender = 'female'; // Default to women's products
     }
     
-    // Price filter
+    // Price filter - API expects min_price and max_price (not min/max)
     if (priceMin !== undefined || priceMax !== undefined || filters?.price) {
       apiFilters.price = {};
       if (priceMin !== undefined || filters?.price?.min !== undefined) {
-        apiFilters.price.min = priceMin ?? filters?.price?.min;
+        apiFilters.price.min_price = priceMin ?? filters?.price?.min;
       }
       if (priceMax !== undefined || filters?.price?.max !== undefined) {
-        apiFilters.price.max = priceMax ?? filters?.price?.max;
+        apiFilters.price.max_price = priceMax ?? filters?.price?.max;
       }
     }
     
