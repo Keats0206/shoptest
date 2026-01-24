@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import StyleDropsShowcase from '@/components/StyleDropsShowcase';
 
 export default function Home() {
@@ -6,41 +7,111 @@ export default function Home() {
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
       <div className="relative max-w-7xl mx-auto px-4 py-20 md:py-32 overflow-hidden">
-        {/* Hero Content */}
-        <div className="relative z-10 text-center mb-20">
-          <h1 className="text-7xl md:text-8xl font-serif font-bold mb-8 tracking-tight bg-gradient-to-b from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
-            StyleRun
-          </h1>
-          
-          {/* Primary Value Prop - Specific Pain Point */}
-          <h2 className="text-3xl md:text-5xl font-medium mb-6 text-neutral-900 max-w-3xl mx-auto leading-tight">
-            Personal styling that actually works
-          </h2>
-          
-          <p className="text-xl md:text-2xl text-neutral-600 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Get 6 outfit ideas personalized to you in 2 minutes—no subscription, no styling fee, no waiting. See how your stylist puts looks together.
-          </p>
-
-          {/* De-risking CTA */}
-          <div className="mb-16">
-            <Link
-              href="/quiz"
-              className="inline-block px-10 py-5 bg-black text-white hover:bg-neutral-900 transition-colors font-medium text-lg uppercase tracking-wide shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-            >
-              Get Styled
-            </Link>
-            <p className="text-base text-neutral-500 mt-4">
-              Free • No subscription • Takes 2 minutes
+        {/* Hero Content - Split Layout */}
+        <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-center mb-20">
+          {/* Left Side - Text Content */}
+          <div className="relative z-10 text-center md:text-left">
+            <h1 className="text-7xl md:text-8xl font-serif font-bold mb-8 tracking-tight bg-gradient-to-b from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
+              StyleRun
+            </h1>
+            
+            {/* Primary Value Prop - Specific Pain Point */}
+            <h2 className="text-3xl md:text-5xl font-medium mb-6 text-neutral-900 max-w-3xl leading-tight">
+              Personal styling that actually works
+            </h2>
+            
+            <p className="text-xl md:text-2xl text-neutral-600 mb-10 max-w-2xl leading-relaxed">
+              Get 6 outfit ideas personalized to you in 2 minutes—no subscription, no styling fee, no waiting. See how your stylist puts looks together.
             </p>
+
+            {/* De-risking CTA */}
+            <div className="mb-16">
+              <Link
+                href="/quiz"
+                className="inline-block px-10 py-5 bg-black text-white hover:bg-neutral-900 transition-colors font-medium text-lg uppercase tracking-wide shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+              >
+                Get Styled
+              </Link>
+              <p className="text-base text-neutral-500 mt-4">
+                Free • No subscription • Takes 2 minutes
+              </p>
+            </div>
+
+            {/* Trust Signals */}
+            <div className="flex flex-wrap justify-center md:justify-start items-center gap-6 md:gap-8 text-sm md:text-base text-neutral-500 mb-16">
+              <span>No styling fee</span>
+              <span>•</span>
+              <span>Instant results</span>
+              <span>•</span>
+              <span>Shop anywhere</span>
+            </div>
           </div>
 
-          {/* Trust Signals */}
-          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-8 text-sm md:text-base text-neutral-500 mb-16">
-            <span>No styling fee</span>
-            <span>•</span>
-            <span>Instant results</span>
-            <span>•</span>
-            <span>Shop anywhere</span>
+          {/* Right Side - Style Images Grid */}
+          <div className="relative z-10 hidden md:block">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Top Left - Classic Style */}
+              <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-neutral-200 shadow-lg hover:shadow-xl transition-shadow group">
+                <Image
+                  src="/styles/classic.png"
+                  alt="Classic style inspiration"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  sizes="(max-width: 768px) 0vw, 50vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              
+              {/* Top Right - Minimalist Style */}
+              <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-neutral-200 shadow-lg hover:shadow-xl transition-shadow group mt-8">
+                <Image
+                  src="/styles/minimalist.png"
+                  alt="Minimalist style inspiration"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  sizes="(max-width: 768px) 0vw, 50vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              
+              {/* Bottom Left - Preppy Style */}
+              <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-neutral-200 shadow-lg hover:shadow-xl transition-shadow group -mt-4">
+                <Image
+                  src="/styles/preppy.png"
+                  alt="Preppy style inspiration"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  sizes="(max-width: 768px) 0vw, 50vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              
+              {/* Bottom Right - Streetwear Style */}
+              <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-neutral-200 shadow-lg hover:shadow-xl transition-shadow group mt-4">
+                <Image
+                  src="/styles/streetwear.png"
+                  alt="Streetwear style inspiration"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  sizes="(max-width: 768px) 0vw, 50vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile - Single Hero Image */}
+          <div className="relative z-10 md:hidden mt-8">
+            <div className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-neutral-200 shadow-lg">
+              <Image
+                src="/styles/classic.png"
+                alt="Style inspiration"
+                fill
+                className="object-cover"
+                sizes="100vw"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+            </div>
           </div>
         </div>
 
