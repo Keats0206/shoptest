@@ -5,7 +5,8 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const redirectParam = requestUrl.searchParams.get('redirect');
-  const origin = requestUrl.origin;
+  // Use NEXT_PUBLIC_SITE_URL if set, otherwise use request origin
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin;
 
   if (code) {
     const supabase = await createClient();

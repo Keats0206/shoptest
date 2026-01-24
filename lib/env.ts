@@ -12,6 +12,7 @@ const requiredEnvVars = [
 
 const optionalEnvVars = [
   'CHANNEL3_API_URL',
+  'NEXT_PUBLIC_SITE_URL',
 ] as const;
 
 export function validateEnv(): void {

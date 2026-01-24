@@ -5,9 +5,9 @@ import { useEffect, useState, Suspense } from 'react';
 import Image from 'next/image';
 import { track } from '@vercel/analytics';
 import Link from 'next/link';
-import ProductDetailModal, { type Product } from '@/components/ProductDetailModal';
+import { ExternalLink } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
-import { type OutfitIdea, type OutfitItem } from '@/components/OutfitCard';
+import { type OutfitIdea, type OutfitItem, Product } from '@/components/OutfitCard';
 
 function OutfitDetailContent() {
   const searchParams = useSearchParams();
@@ -18,8 +18,6 @@ function OutfitDetailContent() {
   
   const [outfit, setOutfit] = useState<OutfitIdea | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, Product>>({});
   const [quizData, setQuizData] = useState<any>(null);
 
   useEffect(() => {
@@ -144,46 +142,22 @@ function OutfitDetailContent() {
     loadOutfit();
   }, [haulId, outfitIndex]);
 
-  const handleVariantClick = (item: OutfitItem, variant: Product) => {
-    setSelectedVariants(prev => ({
-      ...prev,
-      [item.product.id]: variant,
-    }));
-    
-    track('variant_clicked', {
-      originalProductId: item.product.id,
-      variantProductId: variant.id,
-      priceDifference: variant.price - item.product.price,
-      outfitName: outfit?.name || '',
+  const handleBuyClick = (product: { id: string; price: number; brand: string; buyLink: string }, e: React.MouseEvent) => {
+    e.stopPropagation();
+    track('product_outbound_click', {
+      productId: product.id,
+      price: product.price,
+      brand: product.brand,
       haulId: haulId || undefined,
     });
-    
-    setSelectedProduct(variant);
+    window.open(product.buyLink, '_blank', 'noopener,noreferrer');
   };
 
-  const handleProductClick = (product: Product) => {
-    setSelectedProduct(product);
-  };
-
-  const handleShopClick = () => {
-    if (selectedProduct) {
-      track('product_outbound_click', {
-        productId: selectedProduct.id,
-        price: selectedProduct.price,
-        brand: selectedProduct.brand,
-        haulId: haulId || undefined,
-      });
-      window.open(selectedProduct.buyLink, '_blank', 'noopener,noreferrer');
-    }
-  };
-
-  // Calculate current total price (using selected variants if any)
+  // Calculate total price using main recommended products
   const getCurrentTotalPrice = () => {
     if (!outfit) return 0;
     return outfit.items.reduce((sum, item) => {
-      const selectedVariant = selectedVariants[item.product.id];
-      const productToUse = selectedVariant || item.product;
-      return sum + (productToUse.price || 0);
+      return sum + (item.product.price || 0);
     }, 0);
   };
 
@@ -330,9 +304,9 @@ function OutfitDetailContent() {
         {/* Right Side - Products Grid */}
         <div className={`flex-1 ${styleImage ? 'md:w-1/2 lg:w-3/5' : 'w-full'}`}>
           <div className="p-4 md:p-8 lg:p-12">
-            {/* Header - Desktop Only (if no style image) or Mobile */}
-            <div className={`mb-8 ${styleImage ? 'md:hidden' : ''}`}>
-              {!styleImage && (
+            {/* Header - Desktop Only when no style image, or Mobile when no style image */}
+            {!styleImage && (
+              <div className="mb-8">
                 <Link
                   href={haulId ? `/haul?id=${haulId}` : '/'}
                   className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 mb-6 uppercase tracking-wide"
@@ -342,38 +316,20 @@ function OutfitDetailContent() {
                   </svg>
                   Back to all looks
                 </Link>
-              )}
-              <h1 className="text-2xl md:text-3xl font-medium mb-2 uppercase tracking-tight">
-                {outfit.name}
-              </h1>
-              <p className="text-xs text-neutral-500 uppercase tracking-wide mb-4">
-                {outfit.occasion}
-              </p>
-              {styleImage && (
-                <>
-                  <div className="bg-neutral-50 border-l-4 border-black pl-6 py-4 mb-6">
-                    <p className="text-sm italic text-neutral-700 leading-relaxed">
-                      "{outfit.stylistBlurb}"
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 mb-6">
-                    <p className="text-lg font-medium uppercase tracking-wide">
-                      Total: <span className="text-2xl">${getCurrentTotalPrice().toFixed(0)}</span>
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
+                <h1 className="text-2xl md:text-3xl font-medium mb-2 uppercase tracking-tight">
+                  {outfit.name}
+                </h1>
+                <p className="text-xs text-neutral-500 uppercase tracking-wide mb-4">
+                  {outfit.occasion}
+                </p>
+              </div>
+            )}
 
             {/* Products Grid */}
-            <div className="space-y-8">
+            <div className="space-y-12">
               {outfit.items.map((item, itemIndex) => {
-                const selectedVariant = selectedVariants[item.product.id];
-                const mainProduct = selectedVariant || item.product;
-                const hasVariants = item.variants.length > 0;
-                
                 return (
-                  <div key={item.product.id} className="space-y-4">
+                  <div key={item.product.id} className="space-y-6">
                     {/* Category Header */}
                     <div>
                       <h2 className="text-base font-medium uppercase tracking-tight mb-1">
@@ -386,23 +342,15 @@ function OutfitDetailContent() {
                       )}
                     </div>
 
-                    {/* Main Product + Variants Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {/* Main/Selected Product */}
-                      <div
-                        className={`relative group cursor-pointer transition-all border-2 rounded ${
-                          true // Always show main product as selected
-                            ? 'border-black bg-white'
-                            : 'border-neutral-200 bg-white hover:border-neutral-400'
-                        }`}
-                        onClick={() => handleProductClick(mainProduct)}
-                      >
+                    {/* Main Recommended Product */}
+                    <div className="bg-neutral-50 border-2 border-neutral-200 text-neutral-900 p-6 rounded-lg">
+                      <div className="flex items-start gap-4">
                         {/* Product Image */}
-                        <div className="relative aspect-[3/4] bg-neutral-50 mb-2 overflow-hidden rounded-t">
+                        <div className="relative w-32 h-40 md:w-40 md:h-52 flex-shrink-0 bg-white rounded overflow-hidden">
                           <img
-                            src={mainProduct.image || '/placeholder.png'}
-                            alt={mainProduct.name}
-                            className="w-full h-full object-contain p-3"
+                            src={item.product.image || '/placeholder.png'}
+                            alt={item.product.name}
+                            className="w-full h-full object-contain p-2"
                             loading="lazy"
                             onError={(e) => {
                               e.currentTarget.src = '/placeholder.png';
@@ -411,90 +359,92 @@ function OutfitDetailContent() {
                         </div>
 
                         {/* Product Info */}
-                        <div className="p-3 space-y-1">
-                          <p className="text-xs text-neutral-500 uppercase tracking-wide line-clamp-1">
-                            {mainProduct.brand}
-                          </p>
-                          <p className="text-xs font-medium uppercase tracking-tight line-clamp-2">
-                            {mainProduct.name}
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-medium">
-                              ${mainProduct.price.toFixed(0)}
+                        <div className="flex-1 space-y-2">
+                          <div>
+                            <p className="text-xs text-neutral-500 uppercase tracking-wide mb-1">
+                              {item.product.brand}
+                            </p>
+                            <p className="text-sm md:text-base font-medium uppercase tracking-tight mb-2 text-neutral-900">
+                              {item.product.name}
                             </p>
                           </div>
-                        </div>
-
-                        {/* Selected Indicator */}
-                        <div className="absolute top-2 right-2 w-5 h-5 bg-black text-white flex items-center justify-center rounded-full">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
+                          <div className="flex items-center gap-4 mb-3">
+                            <p className="text-lg font-medium text-neutral-900">
+                              ${item.product.price.toFixed(0)}
+                            </p>
+                            <span className="bg-lime-400 text-black px-3 py-1 text-xs font-medium uppercase tracking-wide font-bold">
+                              Recommended
+                            </span>
+                          </div>
+                          {/* Buy Button */}
+                          <button
+                            onClick={(e) => handleBuyClick(item.product, e)}
+                            className="w-full bg-black text-white px-4 py-2 rounded font-medium text-sm uppercase tracking-wide hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
+                          >
+                            Buy Now
+                            <ExternalLink className="w-4 h-4" />
+                            <span className="text-xs text-neutral-300">(opens in new tab)</span>
+                          </button>
                         </div>
                       </div>
-
-                      {/* Variants */}
-                      {item.variants.map((variant) => {
-                        const isSelected = selectedVariant?.id === variant.id;
-                        const priceDiff = variant.price - item.product.price;
-                        
-                        return (
-                          <div
-                            key={variant.id}
-                            className={`relative group cursor-pointer transition-all border-2 rounded ${
-                              isSelected
-                                ? 'border-black bg-white'
-                                : 'border-neutral-200 bg-white hover:border-neutral-400'
-                            }`}
-                            onClick={() => handleVariantClick(item, variant)}
-                          >
-                            {/* Product Image */}
-                            <div className="relative aspect-[3/4] bg-neutral-50 mb-2 overflow-hidden rounded-t">
-                              <img
-                                src={variant.image || '/placeholder.png'}
-                                alt={variant.name}
-                                className="w-full h-full object-contain p-3"
-                                loading="lazy"
-                                onError={(e) => {
-                                  e.currentTarget.src = '/placeholder.png';
-                                }}
-                              />
-                            </div>
-
-                            {/* Product Info */}
-                            <div className="p-3 space-y-1">
-                              <p className="text-xs text-neutral-500 uppercase tracking-wide line-clamp-1">
-                                {variant.brand}
-                              </p>
-                              <p className="text-xs font-medium uppercase tracking-tight line-clamp-2">
-                                {variant.name}
-                              </p>
-                              <div className="flex items-center justify-between">
-                                <p className="text-xs font-medium">
-                                  ${variant.price.toFixed(0)}
-                                </p>
-                                {priceDiff !== 0 && (
-                                  <span className={`text-xs ${
-                                    priceDiff > 0 ? 'text-red-600' : 'text-green-600'
-                                  }`}>
-                                    {priceDiff > 0 ? '+' : ''}${priceDiff.toFixed(0)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Selected Indicator */}
-                            {isSelected && (
-                              <div className="absolute top-2 right-2 w-5 h-5 bg-black text-white flex items-center justify-center rounded-full">
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
                     </div>
+
+                    {/* Alternatives Section */}
+                    {item.variants.length > 0 && (
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm text-neutral-500 uppercase tracking-wide mb-2">
+                            Alternatives
+                          </h3>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {item.variants.map((variant) => {
+                            return (
+                              <div
+                                key={variant.id}
+                                className="relative group transition-all border-2 border-neutral-200 rounded hover:border-neutral-400 bg-white"
+                              >
+                                {/* Product Image */}
+                                <div className="relative aspect-[3/4] bg-neutral-50 mb-2 overflow-hidden rounded-t">
+                                  <img
+                                    src={variant.image || '/placeholder.png'}
+                                    alt={variant.name}
+                                    className="w-full h-full object-contain p-3"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      e.currentTarget.src = '/placeholder.png';
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Product Info */}
+                                <div className="p-3 space-y-2">
+                                  <div className="space-y-1">
+                                    <p className="text-xs text-neutral-500 uppercase tracking-wide line-clamp-1">
+                                      {variant.brand}
+                                    </p>
+                                    <p className="text-xs font-medium uppercase tracking-tight line-clamp-2">
+                                      {variant.name}
+                                    </p>
+                                    <p className="text-xs font-medium">
+                                      ${variant.price.toFixed(0)}
+                                    </p>
+                                  </div>
+                                  {/* Buy Button */}
+                                  <button
+                                    onClick={(e) => handleBuyClick(variant, e)}
+                                    className="w-full bg-black text-white px-3 py-2 rounded text-xs font-medium uppercase tracking-wide hover:bg-neutral-800 transition-colors flex items-center justify-center gap-1.5"
+                                  >
+                                    Buy
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -503,13 +453,6 @@ function OutfitDetailContent() {
         </div>
       </div>
 
-      {/* Product Detail Modal */}
-      <ProductDetailModal
-        product={selectedProduct}
-        isOpen={!!selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-        onShop={handleShopClick}
-      />
     </div>
   );
 }
